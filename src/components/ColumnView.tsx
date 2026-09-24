@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react";
+import { useDroppable } from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { COLUMN_PRESETS, type Column } from "../domain/types";
 import CardView from "./CardView";
 import type { BoardApi } from "../hooks/useBoard";
@@ -10,19 +15,21 @@ export default function ColumnView({
   autoRename,
   onAddCard,
   onOpenCard,
-  onDropCard,
+  dropHighlight,
 }: {
   column: Column;
   board: BoardApi;
   autoRename: boolean;
   onAddCard: () => void;
   onOpenCard: (cardId: string) => void;
-  onDropCard: (cardId: string, toColumnId: string) => void;
+  dropHighlight: boolean;
 }) {
+  // Droppable so cards can land in empty columns; cards themselves are
+  // the drop targets once the column has content.
+  const { setNodeRef, isOver } = useDroppable({ id: column.id });
   const preset = COLUMN_PRESETS[column.colorIndex % COLUMN_PRESETS.length];
   const [editing, setEditing] = useState(autoRename);
   const [draft, setDraft] = useState(column.title);
-  const [over, setOver] = useState(false);
 
   useEffect(() => {
     if (autoRename) setEditing(true);
@@ -41,21 +48,10 @@ export default function ColumnView({
 
   return (
     <section
-      className={`kb-col${over ? " drop-over" : ""}`}
+      ref={setNodeRef}
+      className={`kb-col${isOver || dropHighlight ? " drop-over" : ""}`}
       style={{ background: preset.field }}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setOver(true);
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setOver(false);
-        const id = e.dataTransfer.getData("text/card-id");
-        if (id) onDropCard(id, column.id);
-      }}
       data-testid={`column-${column.id}`}
-      data-column-id={column.id}
     >
       <div className="kb-col-head" style={{ background: preset.header }}>
         {editing ? (
@@ -98,17 +94,21 @@ export default function ColumnView({
         </button>
       </div>
       <div className="kb-col-body">
-        {cards.map((c) => (
-          <CardView
-            key={c.id}
-            card={c}
-            tags={board.tags}
-            done={done}
-            onOpen={() => onOpenCard(c.id)}
-            onDelete={() => board.deleteCard(c.id)}
-            onDropCard={onDropCard}
-          />
-        ))}
+        <SortableContext
+          items={cards.map((c) => c.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {cards.map((c) => (
+            <CardView
+              key={c.id}
+              card={c}
+              tags={board.tags}
+              done={done}
+              onOpen={() => onOpenCard(c.id)}
+              onDelete={() => board.deleteCard(c.id)}
+            />
+          ))}
+        </SortableContext>
         <button className="kb-addcard" onClick={onAddCard}>
           + Add card
         </button>

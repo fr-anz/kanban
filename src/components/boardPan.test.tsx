@@ -19,15 +19,15 @@ describe("shouldStartPan (empty-space hand)", () => {
     document.body.innerHTML = "";
   });
 
-  it("starts on empty board / column / header space", () => {
+  it("starts only on empty board background (never inside a column)", () => {
     const board = el(`<main class="kb-board"></main>`);
     expect(shouldStartPan(board)).toBe(true);
-    const body = el(
-      `<section class="kb-col"><div class="kb-col-body"></div></section>`,
+    const col = el(
+      `<section class="kb-col"><div class="kb-col-head"></div><div class="kb-col-body"></div></section>`,
     );
-    expect(
-      shouldStartPan(body.querySelector(".kb-col-body")),
-    ).toBe(true);
+    expect(shouldStartPan(col)).toBe(false);
+    expect(shouldStartPan(col.querySelector(".kb-col-head"))).toBe(false);
+    expect(shouldStartPan(col.querySelector(".kb-col-body"))).toBe(false);
   });
 
   it("never starts on cards, controls, or overlays", () => {
@@ -181,6 +181,95 @@ describe("board pan gesture (App)", () => {
         pointerType: "touch",
         clientX: -200,
         clientY: 200,
+      }),
+    );
+    expect(boardEl.scrollLeft).toBe(0);
+    expect(boardEl.classList.contains("panning")).toBe(false);
+  });
+
+  it("mouse drag on empty board pans (grab empty space)", () => {
+    render(<App />);
+    const boardEl = document.querySelector(".kb-board") as HTMLElement;
+    boardEl.scrollLeft = 0;
+    fireEvent(
+      boardEl,
+      pointerEvent("pointerdown", {
+        pointerType: "mouse",
+        button: 0,
+        clientX: 300,
+        clientY: 300,
+      }),
+    );
+    fireEvent(
+      boardEl,
+      pointerEvent("pointermove", {
+        pointerType: "mouse",
+        button: 0,
+        clientX: 300 - PAN_THRESHOLD_PX - 100,
+        clientY: 300,
+      }),
+    );
+    expect(boardEl.scrollLeft).toBe(100 + PAN_THRESHOLD_PX);
+    expect(boardEl.classList.contains("panning")).toBe(true);
+    fireEvent(
+      boardEl,
+      pointerEvent("pointerup", {
+        pointerType: "mouse",
+        button: 0,
+        clientX: 200,
+        clientY: 300,
+      }),
+    );
+    expect(boardEl.classList.contains("panning")).toBe(false);
+  });
+
+  it("mouse click without movement scrolls nothing", () => {
+    render(<App />);
+    const boardEl = document.querySelector(".kb-board") as HTMLElement;
+    boardEl.scrollLeft = 0;
+    fireEvent(
+      boardEl,
+      pointerEvent("pointerdown", {
+        pointerType: "mouse",
+        button: 0,
+        clientX: 300,
+        clientY: 300,
+      }),
+    );
+    fireEvent(
+      boardEl,
+      pointerEvent("pointerup", {
+        pointerType: "mouse",
+        button: 0,
+        clientX: 300,
+        clientY: 300,
+      }),
+    );
+    expect(boardEl.scrollLeft).toBe(0);
+    expect(boardEl.classList.contains("panning")).toBe(false);
+  });
+
+  it("mouse press inside a column never starts a board pan", () => {
+    render(<App />);
+    const boardEl = document.querySelector(".kb-board") as HTMLElement;
+    const colBody = document.querySelector(".kb-col-body") as HTMLElement;
+    boardEl.scrollLeft = 0;
+    fireEvent(
+      colBody,
+      pointerEvent("pointerdown", {
+        pointerType: "mouse",
+        button: 0,
+        clientX: 100,
+        clientY: 300,
+      }),
+    );
+    fireEvent(
+      colBody,
+      pointerEvent("pointermove", {
+        pointerType: "mouse",
+        button: 0,
+        clientX: -200,
+        clientY: 300,
       }),
     );
     expect(boardEl.scrollLeft).toBe(0);

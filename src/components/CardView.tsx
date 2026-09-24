@@ -1,13 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { deadlineLabel, getDeadlineStatus } from "../domain/deadlines";
 import { TAG_SWATCHES, type Card, type Tag } from "../domain/types";
-import {
-  COLUMN_ATTR,
-  LONG_PRESS_MS,
-  MOVE_CANCEL_PX,
-  columnIdFromPoint,
-  highlightColumnAt,
-} from "./touchDrag";
+import { wasJustDragged } from "./dragGuard";
 
 const PRIORITY_COLORS: Record<string, string> = {
   high: "#f87171",
@@ -21,136 +16,22 @@ export default function CardView({
   done,
   onOpen,
   onDelete,
-  onDropCard,
 }: {
   card: Card;
   tags: Tag[];
   done: boolean;
   onOpen: () => void;
   onDelete: () => void;
-  onDropCard: (cardId: string, toColumnId: string) => void;
 }) {
-  const ref = useRef<HTMLElement | null>(null);
-  const suppressClick = useRef(false);
-  const dropRef = useRef(onDropCard);
-  dropRef.current = onDropCard;
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: card.id });
 
-  // Touch/pen drag (Pointer Events — the unified input model in browsers
-  // AND the WebView2 desktop shell, where TouchEvents are unreliable).
-  // Long-press a card, then drag it onto another column. The mouse keeps
-  // native HTML5 drag-and-drop; plain swipes keep scrolling the board
-  // (a pending long-press cancels as soon as the pointer travels).
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let timer: number | null = null;
-    let dragging = false;
-    let ghost: HTMLElement | null = null;
-    let startX = 0;
-    let startY = 0;
-    let pointerId: number | null = null;
-
-    const canCapture = typeof el.setPointerCapture === "function";
-
-    const cleanup = () => {
-      ghost?.remove();
-      ghost = null;
-      el.classList.remove("dragging-touch");
-      el.style.touchAction = "";
-      document.body.classList.remove("kb-touch-drag");
-      document
-        .querySelectorAll(`[${COLUMN_ATTR}]`)
-        .forEach((c) => c.classList.remove("drop-over"));
-    };
-
-    const onDown = (e: PointerEvent) => {
-      // Mouse owns HTML5 DnD; multi-touch contacts are ignored.
-      if (e.pointerType === "mouse" || e.isPrimary === false) return;
-      pointerId = e.pointerId;
-      startX = e.clientX;
-      startY = e.clientY;
-      timer = window.setTimeout(() => {
-        dragging = true;
-        // Claimed before the first move, this stops the board scrolling
-        // mid-drag; restored in cleanup.
-        el.style.touchAction = "none";
-        if (canCapture) {
-          try {
-            el.setPointerCapture(pointerId as number);
-          } catch {
-            // Already released — moves still arrive via bubbling.
-          }
-        }
-        const rect = el.getBoundingClientRect();
-        ghost = el.cloneNode(true) as HTMLElement;
-        ghost.className = "kb-card kb-touch-ghost";
-        ghost.style.width = `${rect.width}px`;
-        ghost.style.left = `${rect.left}px`;
-        ghost.style.top = `${rect.top}px`;
-        document.body.appendChild(ghost);
-        el.classList.add("dragging-touch");
-        document.body.classList.add("kb-touch-drag");
-        navigator.vibrate?.(20);
-      }, LONG_PRESS_MS);
-    };
-    const onMove = (e: PointerEvent) => {
-      if (e.pointerId !== pointerId) return;
-      if (!dragging) {
-        if (
-          timer !== null &&
-          Math.hypot(e.clientX - startX, e.clientY - startY) >
-            MOVE_CANCEL_PX
-        ) {
-          window.clearTimeout(timer);
-          timer = null;
-          pointerId = null;
-        }
-        return;
-      }
-      if (ghost) {
-        const w = ghost.offsetWidth;
-        ghost.style.left = `${e.clientX - w / 2}px`;
-        ghost.style.top = `${e.clientY - 24}px`;
-      }
-      highlightColumnAt(e.clientX, e.clientY);
-    };
-    const finish = (drop: boolean, e: PointerEvent) => {
-      if (e.pointerId !== pointerId) return;
-      pointerId = null;
-      if (timer !== null) {
-        window.clearTimeout(timer);
-        timer = null;
-      }
-      if (!dragging) return;
-      dragging = false;
-      const target = drop
-        ? columnIdFromPoint(e.clientX, e.clientY)
-        : null;
-      const from = card.columnId;
-      cleanup();
-      if (target && target !== from) {
-        // A real drop — don't also open the editor on the tap.
-        suppressClick.current = true;
-        window.setTimeout(() => (suppressClick.current = false), 0);
-        dropRef.current(card.id, target);
-      }
-    };
-    const onUp = (e: PointerEvent) => finish(true, e);
-    const onCancel = (e: PointerEvent) => finish(false, e);
-
-    el.addEventListener("pointerdown", onDown);
-    el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerup", onUp);
-    el.addEventListener("pointercancel", onCancel);
-    return () => {
-      if (timer !== null) window.clearTimeout(timer);
-      cleanup();
-      el.removeEventListener("pointerdown", onDown);
-      el.removeEventListener("pointermove", onMove);
-      el.removeEventListener("pointerup", onUp);
-      el.removeEventListener("pointercancel", onCancel);
-    };
-  }, [card.id, card.columnId]);
   const status = getDeadlineStatus(card.deadline);
   const label = deadlineLabel(status);
   const statusColor =
@@ -164,12 +45,18 @@ export default function CardView({
 
   return (
     <article
-      ref={ref}
+      ref={setNodeRef}
       className={`kb-card${done ? " is-done" : ""}`}
-      draggable
-      onDragStart={(e) => e.dataTransfer.setData("text/card-id", card.id)}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.35 : undefined,
+      }}
+      {...attributes}
+      {...listeners}
       onClick={() => {
-        if (suppressClick.current) return;
+        // A drag-end tap must not open the editor.
+        if (wasJustDragged()) return;
         onOpen();
       }}
       data-testid={`card-${card.id}`}

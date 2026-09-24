@@ -4,7 +4,7 @@
  * pager) is excluded so taps, edits, and card drags keep working.
  */
 const PAN_EXCLUDE =
-  ".kb-card,button,input,textarea,select,a,[contenteditable],.kb-modal,.kb-overlay,.kb-pager";
+  ".kb-card,.kb-col,button,input,textarea,select,a,[contenteditable],.kb-modal,.kb-overlay,.kb-pager";
 
 /** Finger travel before an empty-space press becomes a pan. */
 export const PAN_THRESHOLD_PX = 6;

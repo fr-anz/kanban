@@ -44,4 +44,28 @@ describe("usePersistentBoard", () => {
       expect(saved?.columns.map((c) => c.title)).toContain("QA");
     });
   });
+
+  it("persisted board reflects a moved card's location and order", async () => {
+    const storage = memoryBoardStorage();
+    const { result } = renderHook(() => usePersistentBoard(storage));
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    const todo = result.current.columns[0].id;
+    const prog = result.current.columns[1].id;
+    let a = "";
+    let b = "";
+    act(() => {
+      a = result.current.addCard(todo, { title: "A" });
+      b = result.current.addCard(todo, { title: "B" });
+    });
+    act(() => {
+      result.current.moveCardTo(b, prog, 0);
+    });
+    await waitFor(async () => {
+      const saved = await storage.load();
+      const moved = saved?.cards.find((c) => c.id === b);
+      expect(moved?.columnId).toBe(prog);
+      expect(moved?.order).toBe(0);
+      expect(saved?.cards.find((c) => c.id === a)?.columnId).toBe(todo);
+    });
+  });
 });

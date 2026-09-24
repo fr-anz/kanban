@@ -59,7 +59,16 @@ body {
   touch-action: pan-y pinch-zoom;
   cursor: grab;
 }
-.kb-board.panning { cursor: grabbing; scroll-snap-type: none; }
+.kb-board.panning {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  /* Scoped selection lock: only while a pan gesture is active.
+     Cards (drag surfaces) are non-selectable; inputs and fields keep
+     normal selection everywhere else. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+.kb-drag-overlay { box-shadow: 0 12px 32px rgba(0,0,0,0.25); cursor: grabbing; }
 .kb-col {
   min-width: 260px; max-width: 300px; flex: 1;
   border-radius: 16px; padding: 10px;
@@ -103,9 +112,7 @@ body {
   -webkit-user-select: none; user-select: none;
   -webkit-touch-callout: none;
 }
-.kb-card.dragging-touch { opacity: 0.35; }
-.kb-touch-ghost { position: fixed; z-index: 50; pointer-events: none; opacity: 0.92; box-shadow: 0 12px 32px rgba(0,0,0,0.25); margin: 0; }
-body.kb-touch-drag, body.kb-touch-drag * { touch-action: none !important; overscroll-behavior: none !important; }
+
 .kb-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
 .kb-card:hover .kb-x { opacity: 1; }
 .kb-card .kb-x { position: absolute; top: 6px; right: 6px; opacity: 0; }

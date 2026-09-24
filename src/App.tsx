@@ -6,6 +6,20 @@ import ColumnView from "./components/ColumnView";
 import CardModal from "./components/CardModal";
 import TagManager from "./components/TagManager";
 import {
+  DndContext,
+  DragOverlay,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { markDragEnd } from "./components/dragGuard";
+import type { Card } from "./domain/types";
+import {
   PAN_THRESHOLD_PX,
   computeVelocity,
   shouldStartPan,
@@ -24,6 +38,95 @@ export default function App() {
 
   const sorted = [...board.columns].sort((a, b) => a.order - b.order);
   const boardRef = useRef<HTMLElement>(null);
+
+  // Single DnD system (dnd-kit): mouse drags immediately past a small
+  // distance; touch keeps the long-press so scrolling still works.
+  // Scrollable ancestors (board + column bodies) auto-scroll near edges.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 8 },
+    }),
+  );
+  const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [overColumnId, setOverColumnId] = useState<string | null>(null);
+  const dragSnapshot = useRef<Card[]>([]);
+  const activeCard = activeCardId
+    ? board.cards.find((c) => c.id === activeCardId)
+    : undefined;
+
+  // Live placement while dragging: other cards make space, so the drop
+  // target is visible before release. Same helper finalizes on drop.
+  const belowOverItem = (e: DragOverEvent | DragEndEvent): boolean => {
+    const translated = e.active.rect.current.translated;
+    const overRect = e.over?.rect;
+    if (!translated || !overRect) return false;
+    return translated.top > overRect.top + overRect.height / 2;
+  };
+
+  const placeForOver = (activeId: string, overId: string, below: boolean) => {
+    const overCard = board.cards.find((c) => c.id === overId);
+    if (overCard) {
+      const colCards = board.cards
+        .filter((c) => c.columnId === overCard.columnId)
+        .sort((a, b) => a.order - b.order);
+      let idx = colCards.findIndex((c) => c.id === overId);
+      if (below) idx += 1;
+      const activeIdx = colCards.findIndex((c) => c.id === activeId);
+      if (activeIdx !== -1 && activeIdx < idx) idx -= 1;
+      board.moveCardTo(activeId, overCard.columnId, idx);
+      return;
+    }
+    // Over a column surface (empty column): append — unless the card
+    // already lives there, where hovering gaps must not yank it to the end.
+    const col = board.columns.find((c) => c.id === overId);
+    if (!col) return;
+    const home = board.cards.find((c) => c.id === activeId)?.columnId;
+    if (home !== col.id) board.moveCardTo(activeId, col.id);
+  };
+
+  const restoreSnapshot = () =>
+    board.setBoard({
+      id: board.id,
+      title: board.title,
+      columns: board.columns,
+      cards: dragSnapshot.current,
+      tags: board.tags,
+    });
+
+  const onDragStart = (e: DragStartEvent) => {
+    dragSnapshot.current = board.cards;
+    setActiveCardId(String(e.active.id));
+    setOverColumnId(null);
+  };
+  const onDragOver = (e: DragOverEvent) => {
+    const activeId = String(e.active.id);
+    const overId = e.over ? String(e.over.id) : null;
+    setOverColumnId(
+      overId
+        ? (board.cards.find((c) => c.id === overId)?.columnId ?? overId)
+        : null,
+    );
+    if (!overId || overId === activeId) return;
+    placeForOver(activeId, overId, belowOverItem(e));
+  };
+  const onDragEnd = (e: DragEndEvent) => {
+    const activeId = String(e.active.id);
+    const overId = e.over ? String(e.over.id) : null;
+    markDragEnd();
+    setActiveCardId(null);
+    setOverColumnId(null);
+    if (!overId) {
+      restoreSnapshot(); // dropped outside any destination
+      return;
+    }
+    if (overId !== activeId) placeForOver(activeId, overId, belowOverItem(e));
+  };
+  const onDragCancel = () => {
+    restoreSnapshot();
+    setActiveCardId(null);
+    setOverColumnId(null);
+  };
 
   // Trello-style hand pan: drag empty board space to move the board.
   // Touch/pen only; cards and controls are excluded, and vertical swipes
@@ -45,7 +148,10 @@ export default function App() {
     };
 
     const down = (e: PointerEvent) => {
-      if (e.pointerType === "mouse" || e.isPrimary === false) return;
+      // Touch, pen, and left-button mouse may all grab empty board space.
+      // Cards own their own DnD system and never reach this handler.
+      if (e.isPrimary === false) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
       if (!shouldStartPan(e.target)) return;
       stopMomentum();
       pid = e.pointerId;
@@ -124,6 +230,14 @@ export default function App() {
   };
 
   return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}
+    >
     <div className="kb-root">
       <Header
         board={board}
@@ -149,7 +263,7 @@ export default function App() {
             onOpenCard={(cardId) =>
               setCardModal({ columnId: c.id, cardId })
             }
-            onDropCard={(cardId, to) => board.moveCard(cardId, to)}
+            dropHighlight={overColumnId === c.id}
           />
         ))}
         <button
@@ -171,5 +285,16 @@ export default function App() {
       )}
       {tagsOpen && <TagManager board={board} onClose={() => setTagsOpen(false)} />}
     </div>
+    <DragOverlay>
+      {activeCard ? (
+        <div className="kb-card kb-drag-overlay">
+          <h3 className="kb-card-title">{activeCard.title}</h3>
+          {activeCard.description && (
+            <p className="kb-card-desc">{activeCard.description}</p>
+          )}
+        </div>
+      ) : null}
+    </DragOverlay>
+    </DndContext>
   );
 }
