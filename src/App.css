@@ -1,0 +1,198 @@
+:root {
+  --bg: #f5f4f2;
+  --card: #ffffff;
+  --border: #e2ddd8;
+  --muted: #6b7280;
+  font-family: "Nunito", system-ui, sans-serif;
+}
+.mono { font-family: "DM Mono", monospace; }
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: #1f1c19;
+  font-size: 14px;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+*:hover::-webkit-scrollbar-thumb { background: #d1ccc8; }
+
+.kb-root { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.kb-header {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 8px 12px;
+  padding: 12px 32px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.kb-title { font-size: 20px; font-weight: 700; margin: 0; }
+.kb-date { font-size: 12px; color: var(--muted); }
+.kb-titleblock { display: flex; align-items: baseline; gap: 12px; }
+.kb-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
+.kb-btn {
+  border: 1px solid var(--border);
+  background: #fff; border-radius: 10px;
+  padding: 8px 14px; font: inherit; font-weight: 600; font-size: 13px;
+  cursor: pointer; min-height: 24px; min-width: 24px;
+}
+.kb-btn.primary { background: #1f1c19; color: #fff; border-color: #1f1c19; }
+.kb-progress { display: flex; align-items: center; gap: 8px; }
+.kb-progress-label { font-size: 11px; color: var(--muted); }
+.kb-progress-track { width: 90px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.kb-progress-fill { height: 100%; background: #1a7a4a; }
+
+.kb-board {
+  display: flex; gap: 16px; align-items: flex-start;
+  padding: 24px 32px;
+  overflow-x: auto; overflow-y: hidden;
+  flex: 1; min-height: 0;
+  scroll-snap-type: x proximity;
+  scroll-padding: 0 16px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Vertical stays native (column scroll); horizontal is owned by the
+     hand-pan gesture on touch, native overflow everywhere else. */
+  touch-action: pan-y pinch-zoom;
+  cursor: grab;
+}
+.kb-board.panning { cursor: grabbing; scroll-snap-type: none; }
+.kb-col {
+  min-width: 260px; max-width: 300px; flex: 1;
+  border-radius: 16px; padding: 10px;
+  display: flex; flex-direction: column; gap: 10px;
+  scroll-snap-align: start;
+  max-height: 100%; min-height: 0;
+}
+.kb-ghost { scroll-snap-align: start; }
+.kb-col.drop-over { outline: 2px dashed #1f1c19; }
+.kb-col-head {
+  display: flex; align-items: center; gap: 8px;
+  border-radius: 12px; padding: 8px 10px;
+  position: relative;
+}
+.kb-col-label {
+  background: none; border: none; font: inherit; cursor: text;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  flex: 1; text-align: left; padding: 4px;
+}
+.kb-count { font-size: 12px; font-weight: 600; opacity: 0.7; }
+.kb-rename {
+  flex: 1; font: inherit; font-size: 12px; font-weight: 700;
+  border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px;
+}
+.kb-col-head .kb-x { opacity: 0; }
+.kb-col-head:hover .kb-x { opacity: 1; }
+.kb-x {
+  border: none; background: none; cursor: pointer;
+  font-size: 16px; line-height: 1; color: var(--muted);
+  min-width: 24px; min-height: 24px; border-radius: 6px;
+}
+.kb-x:hover { background: rgba(0,0,0,0.06); color: #000; }
+.kb-x.static { opacity: 1; }
+.kb-col-body { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 4px; }
+.kb-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  position: relative; cursor: pointer;
+  touch-action: pan-x pan-y;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+}
+.kb-card.dragging-touch { opacity: 0.35; }
+.kb-touch-ghost { position: fixed; z-index: 50; pointer-events: none; opacity: 0.92; box-shadow: 0 12px 32px rgba(0,0,0,0.25); margin: 0; }
+body.kb-touch-drag, body.kb-touch-drag * { touch-action: none !important; overscroll-behavior: none !important; }
+.kb-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.kb-card:hover .kb-x { opacity: 1; }
+.kb-card .kb-x { position: absolute; top: 6px; right: 6px; opacity: 0; }
+.kb-card.is-done { opacity: 0.65; }
+.kb-card.is-done .kb-card-title { text-decoration: line-through; }
+.kb-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.kb-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.kb-tagrow { display: flex; flex-wrap: wrap; gap: 4px; }
+.kb-tag {
+  font-size: 11px; font-weight: 600; border-radius: 999px; padding: 2px 8px;
+  border: none; cursor: default;
+}
+.kb-tag.toggle { cursor: pointer; opacity: 0.55; }
+.kb-tag.toggle.on { opacity: 1; outline: 2px solid currentColor; }
+.kb-card-title { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
+.kb-card-desc { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+.kb-deadline { font-size: 11px; display: flex; align-items: center; gap: 4px; }
+.kb-addcard {
+  border: none; background: rgba(255,255,255,0.6); border-radius: 10px;
+  padding: 10px; font: inherit; font-size: 13px; font-weight: 600;
+  color: var(--muted); cursor: pointer; text-align: left;
+}
+.kb-addcard:hover { background: #fff; color: #000; }
+.kb-ghost {
+  width: 260px; flex: none; min-height: 120px;
+  border: 2px dashed var(--border); border-radius: 16px;
+  background: none; font-size: 28px; color: var(--muted); cursor: pointer;
+}
+.kb-ghost:hover { border-color: #1f1c19; color: #000; }
+
+.kb-overlay {
+  position: fixed; inset: 0; z-index: 20;
+  background: rgba(0,0,0,0.25);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.kb-modal {
+  background: #fff; border-radius: 16px; padding: 20px;
+  width: 440px; max-width: 100%; max-height: 90vh; overflow: auto;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.kb-modal h2 { margin: 0; font-size: 16px; }
+.kb-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; }
+.kb-field input, .kb-field textarea, .kb-field select {
+  font: inherit; font-weight: 400;
+  border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
+}
+.kb-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.kb-prio-row { display: flex; gap: 8px; }
+.kb-prio {
+  border: 1px solid var(--border); background: #fff; border-radius: 999px;
+  padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 600;
+  display: flex; align-items: center; gap: 6px; cursor: pointer; text-transform: capitalize;
+}
+.kb-prio.active { border-color: #1f1c19; }
+.kb-tagpick { display: flex; flex-wrap: wrap; gap: 6px; }
+.kb-link { background: none; border: none; color: #2563a8; font: inherit; font-size: 12px; cursor: pointer; text-align: left; padding: 0; }
+.kb-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.kb-taglist { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow: auto; }
+.kb-tagitem { display: flex; align-items: center; justify-content: space-between; }
+.kb-muted { color: var(--muted); font-size: 13px; }
+.kb-newtag { display: flex; flex-direction: column; gap: 10px; }
+.kb-swatches { display: flex; gap: 8px; }
+.kb-sw { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; min-width: 24px; min-height: 24px; }
+.kb-sw.active { border-color: #1f1c19; }
+
+.kb-pager { display: none; }
+@media (max-width: 700px) {
+  .kb-header { padding: 10px 16px; }
+  .kb-title { font-size: 17px; }
+  .kb-date { display: none; }
+  .kb-progress-track { width: 56px; }
+  .kb-board { padding: 12px 16px 76px; gap: 12px; }
+  .kb-col { flex: none; width: 80vw; min-width: 0; max-width: 320px; }
+  .kb-ghost { flex: none; width: 80vw; min-width: 0; }
+  .kb-row2 { grid-template-columns: 1fr; }
+  .kb-pager {
+    display: flex; gap: 12px;
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 10;
+    background: rgba(31,28,25,0.9); border-radius: 999px; padding: 6px;
+  }
+  .kb-pager button {
+    border: none; background: none; color: #fff;
+    font-size: 22px; line-height: 1; width: 44px; height: 44px;
+    border-radius: 50%; cursor: pointer;
+  }
+  .kb-pager button:active { background: rgba(255,255,255,0.2); }
+}
