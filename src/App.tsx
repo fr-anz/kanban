@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePersistentBoard } from "./hooks/usePersistentBoard";
 import { resolveBoardStorage } from "./storage/tauriFileStorage";
 import Header from "./components/Header";
@@ -11,13 +11,18 @@ import {
   MouseSensor,
   TouchSensor,
   closestCenter,
+  pointerWithin,
   useSensor,
   useSensors,
+  type CollisionDetection,
+  type DragCancelEvent,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { arrayMove, SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import { markDragEnd } from "./components/dragGuard";
+import { COLUMN_EASING, COLUMN_SETTLE_MS } from "./components/columnMotion";
 import type { Card } from "./domain/types";
 import {
   PAN_THRESHOLD_PX,
@@ -26,6 +31,24 @@ import {
   type PanSample,
 } from "./components/boardPan";
 import "./App.css";
+
+const collisionDetection: CollisionDetection = (args) => {
+  if (args.active.data.current?.type === "column") {
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter(
+        (item) => item.data.current?.type === "column",
+      ),
+    });
+  }
+  const targets = args.droppableContainers.filter(
+    (item) => item.id !== args.active.id,
+  );
+  const pointerTargets = pointerWithin({ ...args, droppableContainers: targets });
+  return pointerTargets.length
+    ? pointerTargets
+    : closestCenter({ ...args, droppableContainers: targets });
+};
 
 export default function App() {
   const storage = useMemo(() => resolveBoardStorage(), []);
@@ -38,6 +61,43 @@ export default function App() {
 
   const sorted = [...board.columns].sort((a, b) => a.order - b.order);
   const boardRef = useRef<HTMLElement>(null);
+  const columnDropRects = useRef<Map<string, DOMRect> | null>(null);
+  const [columnDropRevision, setColumnDropRevision] = useState(0);
+
+  // Capture the actual on-screen positions, including the dragged column's pointer offset.
+  const captureColumnPositions = () => {
+    const columns = boardRef.current?.querySelectorAll<HTMLElement>(".kb-col[data-column-id]");
+    const rects = new Map<string, DOMRect>();
+    columns?.forEach((element) => {
+      const id = element.dataset.columnId;
+      if (id) rects.set(id, element.getBoundingClientRect());
+    });
+    columnDropRects.current = rects;
+  };
+
+  useLayoutEffect(() => {
+    const before = columnDropRects.current;
+    if (!before) return;
+    columnDropRects.current = null;
+    const columns = boardRef.current?.querySelectorAll<HTMLElement>(".kb-col[data-column-id]");
+    columns?.forEach((element) => {
+      const id = element.dataset.columnId;
+      const previous = id ? before.get(id) : undefined;
+      if (!previous) return;
+      const current = element.getBoundingClientRect();
+      const dx = previous.left - current.left;
+      const dy = previous.top - current.top;
+      if (Math.hypot(dx, dy) < 1) return;
+      // Ease from the released position into the reordered layout without replaying a swap.
+      element.animate(
+        [
+          { transform: `translate3d(${dx}px, ${dy}px, 0)` },
+          { transform: "translate3d(0, 0, 0)" },
+        ],
+        { duration: COLUMN_SETTLE_MS, easing: COLUMN_EASING },
+      );
+    });
+  }, [columnDropRevision]);
 
   // Single DnD system (dnd-kit): mouse drags immediately past a small
   // distance; touch keeps the long-press so scrolling still works.
@@ -49,11 +109,31 @@ export default function App() {
     }),
   );
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [showCardOverlay, setShowCardOverlay] = useState(false);
+  const cardOverlayTimer = useRef<number | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
   const dragSnapshot = useRef<Card[]>([]);
   const activeCard = activeCardId
     ? board.cards.find((c) => c.id === activeCardId)
     : undefined;
+
+  useEffect(() => () => {
+    if (cardOverlayTimer.current !== null) window.clearTimeout(cardOverlayTimer.current);
+  }, []);
+
+  const clearCardOverlayTimer = () => {
+    if (cardOverlayTimer.current !== null) window.clearTimeout(cardOverlayTimer.current);
+    cardOverlayTimer.current = null;
+  };
+
+  const finishCardOverlay = () => {
+    clearCardOverlayTimer();
+    // Keep the overlay mounted through dnd-kit's 250 ms card drop animation.
+    cardOverlayTimer.current = window.setTimeout(() => {
+      setShowCardOverlay(false);
+      cardOverlayTimer.current = null;
+    }, 300);
+  };
 
   // Live placement while dragging: other cards make space, so the drop
   // target is visible before release. Same helper finalizes on drop.
@@ -61,7 +141,7 @@ export default function App() {
     const translated = e.active.rect.current.translated;
     const overRect = e.over?.rect;
     if (!translated || !overRect) return false;
-    return translated.top > overRect.top + overRect.height / 2;
+    return translated.top + translated.height / 2 > overRect.top + overRect.height / 2;
   };
 
   const placeForOver = (activeId: string, overId: string, below: boolean) => {
@@ -95,11 +175,18 @@ export default function App() {
     });
 
   const onDragStart = (e: DragStartEvent) => {
+    clearCardOverlayTimer();
+    if (e.active.data.current?.type === "column") {
+      setShowCardOverlay(false);
+      return;
+    }
     dragSnapshot.current = board.cards;
     setActiveCardId(String(e.active.id));
+    setShowCardOverlay(true);
     setOverColumnId(null);
   };
   const onDragOver = (e: DragOverEvent) => {
+    if (e.active.data.current?.type === "column") return;
     const activeId = String(e.active.id);
     const overId = e.over ? String(e.over.id) : null;
     setOverColumnId(
@@ -113,17 +200,38 @@ export default function App() {
   const onDragEnd = (e: DragEndEvent) => {
     const activeId = String(e.active.id);
     const overId = e.over ? String(e.over.id) : null;
-    markDragEnd();
     setActiveCardId(null);
     setOverColumnId(null);
+    if (e.active.data.current?.type === "column") {
+      clearCardOverlayTimer();
+      setShowCardOverlay(false);
+      captureColumnPositions();
+      const from = sorted.findIndex((c) => c.id === activeId);
+      const to = sorted.findIndex((c) => c.id === overId);
+      if (from !== -1 && to !== -1 && from !== to) {
+        board.reorderColumns(arrayMove(sorted, from, to).map((c) => c.id));
+      }
+      setColumnDropRevision((revision) => revision + 1);
+      return;
+    }
+    finishCardOverlay();
+    markDragEnd();
     if (!overId) {
       restoreSnapshot(); // dropped outside any destination
       return;
     }
     if (overId !== activeId) placeForOver(activeId, overId, belowOverItem(e));
   };
-  const onDragCancel = () => {
-    restoreSnapshot();
+  const onDragCancel = (e: DragCancelEvent) => {
+    if (e.active.data.current?.type !== "column") {
+      restoreSnapshot();
+      finishCardOverlay();
+    } else {
+      clearCardOverlayTimer();
+      setShowCardOverlay(false);
+      captureColumnPositions();
+      setColumnDropRevision((revision) => revision + 1);
+    }
     setActiveCardId(null);
     setOverColumnId(null);
   };
@@ -232,7 +340,7 @@ export default function App() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetection}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
@@ -253,19 +361,23 @@ export default function App() {
         </button>
       </div>
       <main ref={boardRef} className="kb-board">
-        {sorted.map((c) => (
-          <ColumnView
-            key={c.id}
-            column={c}
-            board={board}
-            autoRename={freshColId === c.id}
-            onAddCard={() => setCardModal({ columnId: c.id })}
-            onOpenCard={(cardId) =>
-              setCardModal({ columnId: c.id, cardId })
-            }
-            dropHighlight={overColumnId === c.id}
-          />
-        ))}
+        <SortableContext
+          items={sorted.map((c) => c.id)}
+          strategy={horizontalListSortingStrategy}
+        >
+          {sorted.map((c) => (
+            <ColumnView
+              key={c.id}
+              column={c}
+              board={board}
+              autoRename={freshColId === c.id}
+              onOpenCard={(cardId) =>
+                setCardModal({ columnId: c.id, cardId })
+              }
+              dropHighlight={overColumnId === c.id}
+            />
+          ))}
+        </SortableContext>
         <button
           className="kb-ghost"
           onClick={() => setFreshColId(board.addColumn("New column"))}
@@ -285,16 +397,18 @@ export default function App() {
       )}
       {tagsOpen && <TagManager board={board} onClose={() => setTagsOpen(false)} />}
     </div>
-    <DragOverlay>
-      {activeCard ? (
-        <div className="kb-card kb-drag-overlay">
-          <h3 className="kb-card-title">{activeCard.title}</h3>
-          {activeCard.description && (
-            <p className="kb-card-desc">{activeCard.description}</p>
-          )}
-        </div>
-      ) : null}
-    </DragOverlay>
+    {showCardOverlay && (
+      <DragOverlay>
+        {activeCard ? (
+          <div className="kb-card kb-drag-overlay">
+            <h3 className="kb-card-title">{activeCard.title}</h3>
+            {activeCard.description && (
+              <p className="kb-card-desc">{activeCard.description}</p>
+            )}
+          </div>
+        ) : null}
+      </DragOverlay>
+    )}
     </DndContext>
   );
 }

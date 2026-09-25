@@ -22,6 +22,8 @@ describe("SPEC §3 Tag management", () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getAllByRole("button", { name: /add card/i })[0]);
+    await user.type(screen.getByPlaceholderText(/card title/i), "Task{enter}");
+    await user.click(screen.getByText("Task"));
     await user.click(screen.getByRole("button", { name: /manage tags/i }));
     expect(screen.getByPlaceholderText("Tag name")).toBeInTheDocument();
   });
@@ -37,9 +39,10 @@ describe("SPEC §3 Tag management", () => {
 
     // attach to card
     await user.click(screen.getAllByRole("button", { name: /add card/i })[0]);
-    await user.type(screen.getByPlaceholderText(/card title/i), "Tagged");
+    await user.type(screen.getByPlaceholderText(/card title/i), "Tagged{enter}");
+    await user.click(screen.getByText("Tagged"));
     await user.click(screen.getByRole("button", { name: "urgent" }));
-    await user.click(screen.getByRole("button", { name: /^add$/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     expect(screen.getByText("urgent")).toBeInTheDocument();
 
     // delete tag → filtered at render

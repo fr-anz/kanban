@@ -1,35 +1,66 @@
-import { useEffect, useState } from "react";
-import { useDroppable } from "@dnd-kit/core";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   SortableContext,
+  useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { COLUMN_PRESETS, type Column } from "../domain/types";
 import CardView from "./CardView";
 import type { BoardApi } from "../hooks/useBoard";
 import { isDoneColumn } from "../domain/deadlines";
+import { COLUMN_EASING, COLUMN_SETTLE_MS, COLUMN_SHIFT_MS } from "./columnMotion";
+
+const COLUMN_TRANSITION = { duration: COLUMN_SHIFT_MS, easing: COLUMN_EASING };
 
 export default function ColumnView({
   column,
   board,
   autoRename,
-  onAddCard,
   onOpenCard,
   dropHighlight,
 }: {
   column: Column;
   board: BoardApi;
   autoRename: boolean;
-  onAddCard: () => void;
   onOpenCard: (cardId: string) => void;
   dropHighlight: boolean;
 }) {
-  // Droppable so cards can land in empty columns; cards themselves are
-  // the drop targets once the column has content.
-  const { setNodeRef, isOver } = useDroppable({ id: column.id });
+  const {
+    active,
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
+    id: column.id,
+    data: { type: "column" },
+    transition: COLUMN_TRANSITION,
+  });
   const preset = COLUMN_PRESETS[column.colorIndex % COLUMN_PRESETS.length];
   const [editing, setEditing] = useState(autoRename);
   const [draft, setDraft] = useState(column.title);
+  const [addingCard, setAddingCard] = useState(false);
+  const [cardTitle, setCardTitle] = useState("");
+  const [isSettling, setIsSettling] = useState(false);
+  const wasDragging = useRef(false);
+
+  useLayoutEffect(() => {
+    if (isDragging) {
+      wasDragging.current = true;
+      setIsSettling(false);
+      return;
+    }
+    if (!wasDragging.current) return;
+    wasDragging.current = false;
+    setIsSettling(true);
+    const timeout = window.setTimeout(() => setIsSettling(false), COLUMN_SETTLE_MS);
+    return () => window.clearTimeout(timeout);
+  }, [isDragging]);
 
   useEffect(() => {
     if (autoRename) setEditing(true);
@@ -41,19 +72,45 @@ export default function ColumnView({
     setEditing(false);
   };
 
+  const addCard = () => {
+    const title = cardTitle.trim();
+    if (!title) return;
+    board.addCard(column.id, { title });
+    setCardTitle("");
+    setAddingCard(false);
+  };
+
   const cards = board.cards
     .filter((c) => c.columnId === column.id)
     .sort((a, b) => a.order - b.order);
   const done = isDoneColumn(column.title);
+  const highlightDrop = dropHighlight || (isOver && active?.data.current?.type !== "column");
 
   return (
     <section
       ref={setNodeRef}
-      className={`kb-col${isOver || dropHighlight ? " drop-over" : ""}`}
-      style={{ background: preset.field }}
+      className={`kb-col${highlightDrop ? " drop-over" : ""}${isDragging ? " is-dragging" : ""}${isSettling ? " is-settling" : ""}`}
+      style={{
+        background: preset.field,
+        transform: CSS.Transform.toString(transform),
+        transition: transition
+          ? `${transition}, box-shadow ${COLUMN_SETTLE_MS}ms ${COLUMN_EASING}`
+          : `box-shadow ${COLUMN_SETTLE_MS}ms ${COLUMN_EASING}`,
+      }}
+      data-column-id={column.id}
       data-testid={`column-${column.id}`}
     >
       <div className="kb-col-head" style={{ background: preset.header }}>
+        <button
+          ref={setActivatorNodeRef}
+          className="kb-col-drag"
+          aria-label={`Move ${column.title}`}
+          title="Drag to reorder column"
+          {...attributes}
+          {...listeners}
+        >
+          ⠿
+        </button>
         {editing ? (
           <input
             className="kb-rename"
@@ -109,9 +166,46 @@ export default function ColumnView({
             />
           ))}
         </SortableContext>
-        <button className="kb-addcard" onClick={onAddCard}>
-          + Add card
-        </button>
+        {addingCard ? (
+          <form
+            className="kb-addcard-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              addCard();
+            }}
+          >
+            <input
+              autoFocus
+              aria-label={`New card title in ${column.title}`}
+              placeholder="Card title"
+              value={cardTitle}
+              onChange={(e) => setCardTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setCardTitle("");
+                  setAddingCard(false);
+                }
+              }}
+            />
+            <div className="kb-addcard-actions">
+              <button type="submit" className="kb-btn primary">Add</button>
+              <button
+                type="button"
+                className="kb-btn"
+                onClick={() => {
+                  setCardTitle("");
+                  setAddingCard(false);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button className="kb-addcard" onClick={() => setAddingCard(true)}>
+            + Add card
+          </button>
+        )}
       </div>
     </section>
   );

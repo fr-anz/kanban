@@ -71,11 +71,14 @@ body {
 .kb-drag-overlay { box-shadow: 0 12px 32px rgba(0,0,0,0.25); cursor: grabbing; }
 .kb-col {
   min-width: 260px; max-width: 300px; flex: 1;
+  position: relative;
   border-radius: 16px; padding: 10px;
   display: flex; flex-direction: column; gap: 10px;
   scroll-snap-align: start;
   max-height: 100%; min-height: 0;
 }
+.kb-col.is-dragging, .kb-col.is-settling { z-index: 4; will-change: transform; }
+.kb-col.is-dragging { box-shadow: 0 18px 38px rgba(42,35,74,0.14), 0 4px 12px rgba(42,35,74,0.08); }
 .kb-ghost { scroll-snap-align: start; }
 .kb-col.drop-over { outline: 2px dashed #1f1c19; }
 .kb-col-head {
@@ -83,6 +86,13 @@ body {
   border-radius: 12px; padding: 8px 10px;
   position: relative;
 }
+.kb-col-drag {
+  border: none; background: none; color: #1f1c19; opacity: 0.5;
+  cursor: grab; touch-action: none; font-size: 17px; line-height: 1;
+  min-width: 24px; min-height: 24px; padding: 0;
+}
+.kb-col-drag:hover, .kb-col-drag:focus-visible { opacity: 1; }
+.kb-col-drag:active { cursor: grabbing; }
 .kb-col-label {
   background: none; border: none; font: inherit; cursor: text;
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
@@ -136,6 +146,16 @@ body {
   color: var(--muted); cursor: pointer; text-align: left;
 }
 .kb-addcard:hover { background: #fff; color: #000; }
+.kb-addcard-form {
+  display: flex; flex-direction: column; gap: 8px;
+  background: #fff; border: 1px solid var(--border);
+  border-radius: 12px; padding: 10px;
+}
+.kb-addcard-form input {
+  width: 100%; border: none; outline: none; font: inherit;
+}
+.kb-addcard-actions { display: flex; gap: 6px; }
+.kb-addcard-actions .kb-btn { padding: 5px 10px; font-size: 12px; }
 .kb-ghost {
   width: 260px; flex: none; min-height: 120px;
   border: 2px dashed var(--border); border-radius: 16px;
