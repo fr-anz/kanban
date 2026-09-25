@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   SortableContext,
   useSortable,
@@ -9,6 +9,9 @@ import { COLUMN_PRESETS, type Column } from "../domain/types";
 import CardView from "./CardView";
 import type { BoardApi } from "../hooks/useBoard";
 import { isDoneColumn } from "../domain/deadlines";
+import { COLUMN_EASING, COLUMN_SETTLE_MS, COLUMN_SHIFT_MS } from "./columnMotion";
+
+const COLUMN_TRANSITION = { duration: COLUMN_SHIFT_MS, easing: COLUMN_EASING };
 
 export default function ColumnView({
   column,
@@ -24,6 +27,7 @@ export default function ColumnView({
   dropHighlight: boolean;
 }) {
   const {
+    active,
     attributes,
     listeners,
     setNodeRef,
@@ -32,12 +36,31 @@ export default function ColumnView({
     transition,
     isDragging,
     isOver,
-  } = useSortable({ id: column.id, data: { type: "column" } });
+  } = useSortable({
+    id: column.id,
+    data: { type: "column" },
+    transition: COLUMN_TRANSITION,
+  });
   const preset = COLUMN_PRESETS[column.colorIndex % COLUMN_PRESETS.length];
   const [editing, setEditing] = useState(autoRename);
   const [draft, setDraft] = useState(column.title);
   const [addingCard, setAddingCard] = useState(false);
   const [cardTitle, setCardTitle] = useState("");
+  const [isSettling, setIsSettling] = useState(false);
+  const wasDragging = useRef(false);
+
+  useLayoutEffect(() => {
+    if (isDragging) {
+      wasDragging.current = true;
+      setIsSettling(false);
+      return;
+    }
+    if (!wasDragging.current) return;
+    wasDragging.current = false;
+    setIsSettling(true);
+    const timeout = window.setTimeout(() => setIsSettling(false), COLUMN_SETTLE_MS);
+    return () => window.clearTimeout(timeout);
+  }, [isDragging]);
 
   useEffect(() => {
     if (autoRename) setEditing(true);
@@ -61,16 +84,20 @@ export default function ColumnView({
     .filter((c) => c.columnId === column.id)
     .sort((a, b) => a.order - b.order);
   const done = isDoneColumn(column.title);
+  const highlightDrop = dropHighlight || (isOver && active?.data.current?.type !== "column");
 
   return (
     <section
       ref={setNodeRef}
-      className={`kb-col${isOver || dropHighlight ? " drop-over" : ""}${isDragging ? " is-dragging" : ""}`}
+      className={`kb-col${highlightDrop ? " drop-over" : ""}${isDragging ? " is-dragging" : ""}${isSettling ? " is-settling" : ""}`}
       style={{
         background: preset.field,
         transform: CSS.Transform.toString(transform),
-        transition,
+        transition: transition
+          ? `${transition}, box-shadow ${COLUMN_SETTLE_MS}ms ${COLUMN_EASING}`
+          : `box-shadow ${COLUMN_SETTLE_MS}ms ${COLUMN_EASING}`,
       }}
+      data-column-id={column.id}
       data-testid={`column-${column.id}`}
     >
       <div className="kb-col-head" style={{ background: preset.header }}>
