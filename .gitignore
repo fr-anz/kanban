@@ -26,3 +26,6 @@ dist-ssr
 # Docs
 design.md
 SPEC.md
+
+# Local updater signing key (never commit)
+/.updater-keys/
