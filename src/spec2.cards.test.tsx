@@ -4,12 +4,12 @@ import { describe, expect, it } from "vitest";
 import App from "./App";
 
 // SPEC § Card management:
-// - Add via "Add card" bottom of column
-// - Edit by clicking → same modal pre-filled
+// - Add inline via "Add card" at the bottom of a column
+// - Edit by clicking → card modal pre-filled
 // - Delete via hover ×
 // - Done column → strikethrough + reduced opacity
 describe("SPEC §2 Card management", () => {
-  it("edits by clicking: same modal pre-filled", async () => {
+  it("edits by clicking: card modal pre-filled", async () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getAllByRole("button", { name: /add card/i })[0]);

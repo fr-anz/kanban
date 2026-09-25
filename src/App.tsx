@@ -11,12 +11,16 @@ import {
   MouseSensor,
   TouchSensor,
   closestCenter,
+  pointerWithin,
   useSensor,
   useSensors,
+  type CollisionDetection,
+  type DragCancelEvent,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { arrayMove, SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import { markDragEnd } from "./components/dragGuard";
 import type { Card } from "./domain/types";
 import {
@@ -26,6 +30,24 @@ import {
   type PanSample,
 } from "./components/boardPan";
 import "./App.css";
+
+const collisionDetection: CollisionDetection = (args) => {
+  if (args.active.data.current?.type === "column") {
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter(
+        (item) => item.data.current?.type === "column",
+      ),
+    });
+  }
+  const targets = args.droppableContainers.filter(
+    (item) => item.id !== args.active.id,
+  );
+  const pointerTargets = pointerWithin({ ...args, droppableContainers: targets });
+  return pointerTargets.length
+    ? pointerTargets
+    : closestCenter({ ...args, droppableContainers: targets });
+};
 
 export default function App() {
   const storage = useMemo(() => resolveBoardStorage(), []);
@@ -61,7 +83,7 @@ export default function App() {
     const translated = e.active.rect.current.translated;
     const overRect = e.over?.rect;
     if (!translated || !overRect) return false;
-    return translated.top > overRect.top + overRect.height / 2;
+    return translated.top + translated.height / 2 > overRect.top + overRect.height / 2;
   };
 
   const placeForOver = (activeId: string, overId: string, below: boolean) => {
@@ -95,11 +117,13 @@ export default function App() {
     });
 
   const onDragStart = (e: DragStartEvent) => {
+    if (e.active.data.current?.type === "column") return;
     dragSnapshot.current = board.cards;
     setActiveCardId(String(e.active.id));
     setOverColumnId(null);
   };
   const onDragOver = (e: DragOverEvent) => {
+    if (e.active.data.current?.type === "column") return;
     const activeId = String(e.active.id);
     const overId = e.over ? String(e.over.id) : null;
     setOverColumnId(
@@ -113,17 +137,25 @@ export default function App() {
   const onDragEnd = (e: DragEndEvent) => {
     const activeId = String(e.active.id);
     const overId = e.over ? String(e.over.id) : null;
-    markDragEnd();
     setActiveCardId(null);
     setOverColumnId(null);
+    if (e.active.data.current?.type === "column") {
+      const from = sorted.findIndex((c) => c.id === activeId);
+      const to = sorted.findIndex((c) => c.id === overId);
+      if (from !== -1 && to !== -1 && from !== to) {
+        board.reorderColumns(arrayMove(sorted, from, to).map((c) => c.id));
+      }
+      return;
+    }
+    markDragEnd();
     if (!overId) {
       restoreSnapshot(); // dropped outside any destination
       return;
     }
     if (overId !== activeId) placeForOver(activeId, overId, belowOverItem(e));
   };
-  const onDragCancel = () => {
-    restoreSnapshot();
+  const onDragCancel = (e: DragCancelEvent) => {
+    if (e.active.data.current?.type !== "column") restoreSnapshot();
     setActiveCardId(null);
     setOverColumnId(null);
   };
@@ -232,7 +264,7 @@ export default function App() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetection}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
@@ -253,19 +285,23 @@ export default function App() {
         </button>
       </div>
       <main ref={boardRef} className="kb-board">
-        {sorted.map((c) => (
-          <ColumnView
-            key={c.id}
-            column={c}
-            board={board}
-            autoRename={freshColId === c.id}
-            onAddCard={() => setCardModal({ columnId: c.id })}
-            onOpenCard={(cardId) =>
-              setCardModal({ columnId: c.id, cardId })
-            }
-            dropHighlight={overColumnId === c.id}
-          />
-        ))}
+        <SortableContext
+          items={sorted.map((c) => c.id)}
+          strategy={horizontalListSortingStrategy}
+        >
+          {sorted.map((c) => (
+            <ColumnView
+              key={c.id}
+              column={c}
+              board={board}
+              autoRename={freshColId === c.id}
+              onOpenCard={(cardId) =>
+                setCardModal({ columnId: c.id, cardId })
+              }
+              dropHighlight={overColumnId === c.id}
+            />
+          ))}
+        </SortableContext>
         <button
           className="kb-ghost"
           onClick={() => setFreshColId(board.addColumn("New column"))}
