@@ -192,6 +192,10 @@ body {
 .kb-tagpick { display: flex; flex-wrap: wrap; gap: 6px; }
 .kb-link { background: none; border: none; color: #2563a8; font: inherit; font-size: 12px; cursor: pointer; text-align: left; padding: 0; }
 .kb-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.kb-update-modal { width: 400px; }
+.kb-update-notes { margin: 0; white-space: pre-wrap; font-size: 13px; max-height: 180px; overflow: auto; }
+.kb-update-track { height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; }
+.kb-update-fill { height: 100%; background: #6d4fc2; transition: width 180ms ease; }
 .kb-taglist { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow: auto; }
 .kb-tagitem { display: flex; align-items: center; justify-content: space-between; }
 .kb-muted { color: var(--muted); font-size: 13px; }

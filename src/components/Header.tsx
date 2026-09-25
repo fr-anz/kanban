@@ -1,5 +1,6 @@
 import type { BoardApi } from "../hooks/useBoard";
 import { getProgress } from "../domain/deadlines";
+import DesktopUpdater from "./DesktopUpdater";
 
 export default function Header({
   board,
@@ -23,6 +24,7 @@ export default function Header({
         <span className="kb-date">{today}</span>
       </div>
       <div className="kb-actions">
+        <DesktopUpdater />
         {total > 0 && (
           <div
             className="kb-progress"
