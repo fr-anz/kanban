@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing version tag to build and publish
+        required: true
+        type: string
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
 
 permissions:
   contents: write
@@ -13,6 +22,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -30,35 +41,16 @@ jobs:
 
   release:
     needs: verify
-    strategy:
-      fail-fast: false
-      # Each build updates latest.json; serialize to avoid concurrent writes.
-      max-parallel: 1
-      matrix:
-        include:
-          - platform: windows-latest
-            args: ""
-          - platform: ubuntu-22.04
-            args: ""
-          - platform: macos-latest
-            args: "--target aarch64-apple-darwin"
-          - platform: macos-latest
-            args: "--target x86_64-apple-darwin"
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+        with:
+          ref: ${{ env.RELEASE_TAG }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: ./src-tauri -> target
@@ -69,28 +61,27 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: "-"
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Kanban ${{ github.ref_name }}
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: Kanban ${{ env.RELEASE_TAG }}
           releaseDraft: true
           # The first beta is a normal Latest release so existing v0.3.0
           # clients using releases/latest/download/latest.json can find it.
-          prerelease: ${{ contains(github.ref_name, '-') && github.ref_name != 'v0.4.0-beta.1' }}
+          prerelease: ${{ contains(env.RELEASE_TAG, '-') && env.RELEASE_TAG != 'v0.4.0-beta.1' }}
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
-          args: ${{ matrix.args }}
 
   publish:
     needs: release
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Publish complete release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "$GITHUB_REF_NAME" == *-* && "$GITHUB_REF_NAME" != "v0.4.0-beta.1" ]]; then
-            gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease --latest=false --repo "$GITHUB_REPOSITORY"
+          if [[ "$RELEASE_TAG" == *-* && "$RELEASE_TAG" != "v0.4.0-beta.1" ]]; then
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false --repo "$GITHUB_REPOSITORY"
           else
-            gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease=false --latest --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest --repo "$GITHUB_REPOSITORY"
           fi

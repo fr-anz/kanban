@@ -61,6 +61,8 @@ Install the E2E browser once with `npx playwright install chromium`, then run `n
 The desktop app checks for updates when it opens and asks before installing one. You can also use **Check for updates** at the bottom of the sidebar. Browser builds do not check for desktop updates.
 
 Updates are served from the public GitHub Releases of `fr-anz/kanban`. The release workflow in `.github/workflows/release.yml` builds signed updater artifacts and `latest.json` when a `v*` tag is pushed. The repository and its releases must be public so installed apps can download them without a GitHub login.
+Release packaging currently targets Windows only. The workflow can also be
+dispatched with an existing `release_tag` to rebuild it without moving the tag.
 
 Before publishing a release:
 
