@@ -1,4 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
+import { trackOverrides } from "../domain/classroom";
 import {
   newId,
   nextPresetIndex,
@@ -96,7 +97,7 @@ export function useBoard(initial?: Board, binding?: {
     setBoard((b) => ({
       ...b,
       cards: b.cards.map((c) =>
-        c.id === id ? { ...c, ...patch, id, updatedAt: nowIso() } : c,
+        c.id === id ? { ...c, ...(patch.source ? patch : trackOverrides(c, patch)), id, updatedAt: nowIso() } : c,
       ),
     }));
 

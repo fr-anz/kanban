@@ -9,7 +9,27 @@ permissions:
   contents: write
 
 jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - run: npx playwright install chromium
+      - run: npm run test:e2e
+
   release:
+    needs: verify
     strategy:
       fail-fast: false
       # Each build updates latest.json; serialize to avoid concurrent writes.
@@ -54,7 +74,9 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: Kanban ${{ github.ref_name }}
           releaseDraft: true
-          prerelease: false
+          # The first beta is a normal Latest release so existing v0.3.0
+          # clients using releases/latest/download/latest.json can find it.
+          prerelease: ${{ contains(github.ref_name, '-') && github.ref_name != 'v0.4.0-beta.1' }}
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
@@ -66,4 +88,9 @@ jobs:
       - name: Publish complete release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false --repo "$GITHUB_REPOSITORY"
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* && "$GITHUB_REF_NAME" != "v0.4.0-beta.1" ]]; then
+            gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease --latest=false --repo "$GITHUB_REPOSITORY"
+          else
+            gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease=false --latest --repo "$GITHUB_REPOSITORY"
+          fi

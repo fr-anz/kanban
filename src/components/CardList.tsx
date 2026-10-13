@@ -1,6 +1,6 @@
 import type { BoardApi } from "../hooks/useBoard";
 import type { Card } from "../domain/types";
-import { isDoneColumn } from "../domain/deadlines";
+import { formatDueAt, isDoneColumn } from "../domain/deadlines";
 import Icon from "./Icon";
 
 export default function CardList({ board, cards, onOpenCard }: {
@@ -17,8 +17,8 @@ export default function CardList({ board, cards, onOpenCard }: {
         </div>
         {items.map((card) => <button className={`kb-list-row${done ? " is-done" : ""}`} key={card.id} onClick={() => onOpenCard(column.id, card.id)} aria-label={`Edit ${card.title}`}>
           <span className={`kb-priority-bars ${card.priority}`} title={`${card.priority} priority`}><i /><i /><i /></span>
-          <span className="kb-list-card-title">{card.title}</span><span className="kb-tagrow">{board.tags.filter((tag) => card.tagIds.includes(tag.id)).map((tag) => <span className={`kb-tag tone-${tag.colorIndex % 8}`} key={tag.id}>{tag.name}</span>)}</span>
-          <span className="kb-list-due">{done ? "Completed" : card.deadline ? new Date(`${card.deadline}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}</span>
+          <span className="kb-list-card-title">{card.title}{card.source && <small className="kb-source-badge">Google Classroom{card.source.unavailable ? " · Unavailable" : ""}</small>}</span><span className="kb-tagrow">{board.tags.filter((tag) => card.tagIds.includes(tag.id)).map((tag) => <span className={`kb-tag tone-${tag.colorIndex % 8}`} key={tag.id}>{tag.name}</span>)}</span>
+          <span className="kb-list-due">{done ? "Completed" : card.dueAt ? formatDueAt(card.dueAt) : card.deadline ? new Date(`${card.deadline}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}</span>
           <Icon name="arrowRight" size={14} />
         </button>)}
         {items.length === 0 && <p className="kb-list-empty">No cards in this column.</p>}

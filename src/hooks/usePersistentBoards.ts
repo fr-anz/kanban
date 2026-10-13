@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
 import type { Board, BoardCollection } from "../domain/types";
 import type { BoardCollectionStorage } from "../storage/boardCollectionStorage";
+import { suppressDeleted, unlinkBoard } from "../domain/classroom";
 import { createBoard } from "./useBoard";
 
 export function usePersistentBoards(storage: BoardCollectionStorage) {
@@ -40,12 +41,23 @@ export function usePersistentBoards(storage: BoardCollectionStorage) {
   }, [collection, storage, saveAttempt]);
 
   const updateBoard = useCallback((id: string, update: SetStateAction<Board>) => {
-    setCollection((current) => current && ({
-      ...current,
-      boards: current.boards.map((board) => board.id === id
-        ? typeof update === "function" ? update(board) : update
-        : board),
-    }));
+    setCollection((current) => {
+      if (!current) return current;
+      const previous = current.boards.find((board) => board.id === id);
+      if (!previous) return current;
+      const next = typeof update === "function" ? update(previous) : update;
+      if (next === previous) return current;
+      // Deleting an imported card (or its column) suppresses its reimport.
+      return suppressDeleted({
+        ...current,
+        boards: current.boards.map((board) => board.id === id ? next : board),
+      }, previous, next);
+    });
+  }, []);
+
+  /** Whole-collection change, applied to the latest state (used by connectors). */
+  const mutateCollection = useCallback((update: (current: BoardCollection) => BoardCollection) => {
+    setCollection((current) => current && update(current));
   }, []);
 
   const addBoard = (name: string) => {
@@ -70,17 +82,19 @@ export function usePersistentBoards(storage: BoardCollectionStorage) {
   const deleteBoard = (id: string) => setCollection((current) => {
     if (!current) return current;
     const boards = current.boards.filter((board) => board.id !== id);
-    return { ...current, boards, activeBoardId: current.activeBoardId === id
-      ? boards[0]?.id ?? null : current.activeBoardId };
+    // Deleting a course board unsubscribes that course.
+    return unlinkBoard({ ...current, boards, activeBoardId: current.activeBoardId === id
+      ? boards[0]?.id ?? null : current.activeBoardId }, id);
   });
 
   return {
+    collection,
     boards: collection?.boards ?? [],
     activeBoard: collection?.boards.find((board) => board.id === collection.activeBoardId) ?? null,
     loaded: collection !== null,
     loadError, saveError,
     retryLoad: () => setLoadAttempt((attempt) => attempt + 1),
     retrySave: () => setSaveAttempt((attempt) => attempt + 1),
-    addBoard, selectBoard, renameBoard, deleteBoard, updateBoard,
+    addBoard, selectBoard, renameBoard, deleteBoard, updateBoard, mutateCollection,
   };
 }

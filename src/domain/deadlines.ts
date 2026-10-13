@@ -31,12 +31,37 @@ export function getDeadlineStatus(
   return { kind: "ontrack", label: formatDate(due) };
 }
 
+/**
+ * Deadline for a card. An exact `dueAt` instant (imported work) is overdue
+ * from that moment; date-only deadlines keep whole-day semantics.
+ */
+export function getCardDeadlineStatus(
+  card: { deadline?: string; dueAt?: string },
+  now: Date = new Date(),
+): DeadlineState {
+  if (!card.dueAt) return getDeadlineStatus(card.deadline, now);
+  const due = new Date(card.dueAt);
+  if (Number.isNaN(due.getTime())) return getDeadlineStatus(card.deadline, now);
+  const diffDays = Math.round((startOfDay(due).getTime() - startOfDay(now).getTime()) / 86_400_000);
+  if (due.getTime() <= now.getTime()) return { kind: "overdue", daysOverdue: Math.max(0, -diffDays) };
+  if (diffDays === 0) return { kind: "today" };
+  if (diffDays <= 3) return { kind: "soon", daysLeft: diffDays };
+  return { kind: "ontrack", label: formatDate(due) };
+}
+
+/** Local date and time for an exact deadline, e.g. "Mon, Nov 2, 11:59 PM". */
+export function formatDueAt(instant: string): string {
+  return new Date(instant).toLocaleString("en-US", {
+    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+}
+
 export function deadlineLabel(s: DeadlineState): string | null {
   switch (s.kind) {
     case "none":
       return null;
     case "overdue":
-      return `${s.daysOverdue}d overdue`;
+      return s.daysOverdue > 0 ? `${s.daysOverdue}d overdue` : "Overdue";
     case "today":
       return "Due today";
     case "soon":

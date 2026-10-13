@@ -8,11 +8,12 @@ import Icon from "./Icon";
 import Logo from "./Logo";
 
 export default function BoardSidebar({ boards, activeBoardId, open, mobile, disabled, dialogOpen,
-  onClose, onSelect, onAction, query, onQueryChange, searchRef, appearance, onToggleAppearance }: {
+  onClose, onSelect, onAction, query, onQueryChange, searchRef, appearance, onToggleAppearance, onOpenClassroom }: {
   boards: Board[]; activeBoardId: string | null; open: boolean; mobile: boolean; disabled: boolean;
   dialogOpen: boolean; onClose: () => void; onSelect: (id: string) => void;
   onAction: (action: BoardDialogAction) => void; query: string; onQueryChange: (query: string) => void;
   searchRef: RefObject<HTMLInputElement | null>; appearance: Appearance; onToggleAppearance: () => void;
+  onOpenClassroom: () => void;
 }) {
   const ref = useRef<HTMLElement>(null);
   useDialogFocus(ref, mobile && open, onClose);
@@ -47,6 +48,7 @@ export default function BoardSidebar({ boards, activeBoardId, open, mobile, disa
       </nav>
       <button className="kb-btn subtle kb-add-board" aria-label="+ Add board" disabled={disabled} onClick={() => onAction({ kind: "create" })}><Icon name="plus" size={16} />Add board</button>
       <div className="kb-sidebar-footer">
+        <button className="kb-btn subtle" disabled={disabled} onClick={onOpenClassroom}>Google Classroom</button>
         <div className="kb-device-note"><Icon name="device" size={15} /><span>Stored on this device</span></div>
         <p className="kb-sidebar-caption">A little space for your next idea.</p>
         <DesktopUpdater />

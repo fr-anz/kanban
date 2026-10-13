@@ -28,6 +28,48 @@ export interface Card {
   /** optional freeform notes (future flow step) */
   notes?: string;
   order: number;
+  /** Exact UTC deadline instant (ISO 8601). Takes precedence over `deadline`. */
+  dueAt?: string;
+  /** Present on cards imported from an external source. */
+  source?: ClassroomSource;
+}
+
+/** Fields of an imported card that a local edit can override. */
+export type SourceField = "title" | "description" | "deadline";
+
+export interface ClassroomSource {
+  provider: "google-classroom";
+  accountId: string;
+  courseId: string;
+  courseWorkId: string;
+  /** Original Classroom link (https only). */
+  link?: string;
+  workType?: string;
+  submissionState?: string;
+  late?: boolean;
+  /** Latest values reported by Classroom. */
+  remote: { title: string; description: string; dueAt?: string };
+  overrides: Partial<Record<SourceField, boolean>>;
+  /** Missing from the last complete course fetch. */
+  unavailable?: boolean;
+  syncedAt: string;
+}
+
+export interface ClassroomCourseLink {
+  name: string;
+  /** Board created for this course; kept after deselection so reselecting reuses it. */
+  boardId?: string;
+  subscribed: boolean;
+  refreshedAt?: string;
+}
+
+export interface ClassroomState {
+  /** Account the subscriptions belong to. */
+  accountId?: string;
+  courses: Record<string, ClassroomCourseLink>;
+  /** Import keys (`account:course:courseWork`) whose cards were deleted locally. */
+  ignored: string[];
+  lastRefreshAt?: string;
 }
 
 export interface Column {
@@ -50,6 +92,8 @@ export interface BoardCollection {
   version: 1;
   boards: Board[];
   activeBoardId: string | null;
+  /** Optional connector bookkeeping; absent in collections saved before v0.4. */
+  classroom?: ClassroomState;
 }
 
 export const COLUMN_PRESETS = [

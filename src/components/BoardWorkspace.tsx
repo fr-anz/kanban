@@ -64,12 +64,13 @@ const keyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
   return sortableKeyboardCoordinates(event, { ...args, context: { ...args.context, droppableRects } });
 };
 
-export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, sidebarOpen, onDragChange, query, onClearQuery }: {
+export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, sidebarOpen, onDragChange, onEditChange, query, onClearQuery }: {
   snapshot: Board;
   setBoard: Dispatch<SetStateAction<Board>>;
   onToggleSidebar: () => void;
   sidebarOpen: boolean;
   onDragChange: (dragging: boolean) => void;
+  onEditChange: (editing: boolean) => void;
   query: string;
   onClearQuery: () => void;
 }) {
@@ -82,6 +83,11 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
   const [view, setView] = useState<"board" | "list">("board");
   const [filters, setFilters] = useState<BoardFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [inlineEditing, setInlineEditing] = useState(false);
+  useEffect(() => {
+    onEditChange(Boolean(cardModal || tagsOpen || filterOpen || inlineEditing));
+    return () => onEditChange(false);
+  }, [cardModal, tagsOpen, filterOpen, inlineEditing, onEditChange]);
   const [dragging, setDragging] = useState(false);
   const filterCount = Object.values(filters).filter((value) => value !== "all").length;
   const filtered = Boolean(query.trim() || filterCount);
@@ -387,7 +393,11 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}
     >
-    <div className="kb-board-workspace">
+    <div className="kb-board-workspace" onFocusCapture={(event) => {
+      if ((event.target as HTMLElement).matches("input, textarea, select")) setInlineEditing(true);
+    }} onBlurCapture={(event) => {
+      if (!(event.relatedTarget as HTMLElement | null)?.matches("input, textarea, select")) setInlineEditing(false);
+    }}>
       <Header
         board={board}
         onToggleSidebar={onToggleSidebar}
