@@ -63,6 +63,11 @@ jobs:
           workspaces: ./src-tauri -> target
       - name: Install frontend dependencies
         run: npm ci
+      - name: Set numeric MSI version for the beta
+        if: env.RELEASE_TAG == 'v0.4.0-beta.1'
+        shell: pwsh
+        run: |
+          '{"bundle":{"windows":{"wix":{"version":"0.4.0.1"}}}}' | Set-Content -Encoding utf8 src-tauri/tauri.windows.conf.json
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
