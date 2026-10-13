@@ -1,15 +1,16 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { COLUMN_PRESETS, type Column } from "../domain/types";
+import type { Card, Column } from "../domain/types";
 import CardView from "./CardView";
 import type { BoardApi } from "../hooks/useBoard";
 import { isDoneColumn } from "../domain/deadlines";
 import { COLUMN_EASING, COLUMN_SETTLE_MS, COLUMN_SHIFT_MS } from "./columnMotion";
+import Icon from "./Icon";
 
 const COLUMN_TRANSITION = { duration: COLUMN_SHIFT_MS, easing: COLUMN_EASING };
 
@@ -19,12 +20,18 @@ export default function ColumnView({
   autoRename,
   onOpenCard,
   dropHighlight,
+  visible,
+  draggable = true,
+  onStartAdd,
 }: {
   column: Column;
   board: BoardApi;
   autoRename: boolean;
   onOpenCard: (cardId: string) => void;
   dropHighlight: boolean;
+  visible?: Card[];
+  draggable?: boolean;
+  onStartAdd?: () => void;
 }) {
   const {
     active,
@@ -40,8 +47,8 @@ export default function ColumnView({
     id: column.id,
     data: { type: "column" },
     transition: COLUMN_TRANSITION,
+    disabled: !draggable,
   });
-  const preset = COLUMN_PRESETS[column.colorIndex % COLUMN_PRESETS.length];
   const [editing, setEditing] = useState(autoRename);
   const [draft, setDraft] = useState(column.title);
   const [addingCard, setAddingCard] = useState(false);
@@ -80,7 +87,7 @@ export default function ColumnView({
     setAddingCard(false);
   };
 
-  const cards = board.cards
+  const cards = (visible ?? board.cards)
     .filter((c) => c.columnId === column.id)
     .sort((a, b) => a.order - b.order);
   const done = isDoneColumn(column.title);
@@ -91,26 +98,28 @@ export default function ColumnView({
       ref={setNodeRef}
       className={`kb-col${highlightDrop ? " drop-over" : ""}${isDragging ? " is-dragging" : ""}${isSettling ? " is-settling" : ""}`}
       style={{
-        background: preset.field,
+        "--lane-color": `var(--lane-${column.colorIndex % 6})`,
         transform: CSS.Transform.toString(transform),
         transition: transition
           ? `${transition}, box-shadow ${COLUMN_SETTLE_MS}ms ${COLUMN_EASING}`
           : `box-shadow ${COLUMN_SETTLE_MS}ms ${COLUMN_EASING}`,
-      }}
+      } as CSSProperties}
       data-column-id={column.id}
       data-testid={`column-${column.id}`}
     >
-      <div className="kb-col-head" style={{ background: preset.header }}>
+      <div className="kb-col-head">
         <button
           ref={setActivatorNodeRef}
           className="kb-col-drag"
           aria-label={`Move ${column.title}`}
           title="Drag to reorder column"
+          disabled={!draggable}
           {...attributes}
           {...listeners}
         >
-          ⠿
+          <Icon name="grip" size={15} />
         </button>
+        <span className={`kb-status-dot${done ? " done" : column.order === 1 ? " active" : ""}`} aria-hidden="true">{done && <Icon name="check" size={10} />}</span>
         {editing ? (
           <input
             className="kb-rename"
@@ -129,7 +138,6 @@ export default function ColumnView({
         ) : (
           <button
             className="kb-col-label"
-            style={{ color: preset.accent }}
             onClick={() => {
               setDraft(column.title);
               setEditing(true);
@@ -139,7 +147,7 @@ export default function ColumnView({
             {column.title}
           </button>
         )}
-        <span className="kb-count mono" style={{ color: preset.accent }}>
+        <span className="kb-count">
           {cards.length}
         </span>
         <button
@@ -147,8 +155,9 @@ export default function ColumnView({
           aria-label={`Delete ${column.title}`}
           onClick={() => board.deleteColumn(column.id)}
         >
-          ×
+          <Icon name="close" size={13} />
         </button>
+        <button className="kb-icon-btn kb-col-add" aria-label={`New card in ${column.title}`} onClick={() => { onStartAdd?.(); setAddingCard(true); }}><Icon name="plus" size={14} /></button>
       </div>
       <div className="kb-col-body">
         <SortableContext
@@ -163,6 +172,7 @@ export default function ColumnView({
               done={done}
               onOpen={() => onOpenCard(c.id)}
               onDelete={() => board.deleteCard(c.id)}
+              draggable={draggable}
             />
           ))}
         </SortableContext>
@@ -202,8 +212,8 @@ export default function ColumnView({
             </div>
           </form>
         ) : (
-          <button className="kb-addcard" onClick={() => setAddingCard(true)}>
-            + Add card
+          <button className="kb-addcard" aria-label="+ Add card" onClick={() => { onStartAdd?.(); setAddingCard(true); }}>
+            <Icon name="plus" size={14} />Add card
           </button>
         )}
       </div>

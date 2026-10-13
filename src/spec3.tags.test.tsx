@@ -12,6 +12,7 @@ describe("SPEC §3 Tag management", () => {
   it("opens from header Tags button and creates via Enter", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("heading", { name: "My Board" });
     await user.click(screen.getByRole("button", { name: "Tags" }));
     expect(screen.getByPlaceholderText("Tag name")).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText("Tag name"), "bug{enter}");
@@ -21,6 +22,7 @@ describe("SPEC §3 Tag management", () => {
   it("opens from Manage tags link inside card modal", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("heading", { name: "My Board" });
     await user.click(screen.getAllByRole("button", { name: /add card/i })[0]);
     await user.type(screen.getByPlaceholderText(/card title/i), "Task{enter}");
     await user.click(screen.getByText("Task"));
@@ -31,6 +33,7 @@ describe("SPEC §3 Tag management", () => {
   it("deleted tags disappear from cards at render", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("heading", { name: "My Board" });
     // create tag
     await user.click(screen.getByRole("button", { name: "Tags" }));
     await user.type(screen.getByPlaceholderText("Tag name"), "urgent");
