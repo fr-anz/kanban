@@ -2,6 +2,8 @@
 
 A personal, single-user kanban app — React + TypeScript + Vite, wrapped in a Tauri desktop shell. Multiple local boards, custom columns, cards with deadlines/priorities/tags, drag-and-drop, and local persistence (file-backed in the desktop app, `localStorage` in the browser).
 
+The Graphite interface includes dark and light modes, a custom KB mark, compact cards, and locally bundled Inter fonts. Change appearance at the bottom of the sidebar; the choice persists on this device. Internal card IDs are kept for storage and are not displayed.
+
 ## Run it locally
 
 ```bash
@@ -36,6 +38,7 @@ npm run preview
 | Command                          | What it does                              |
 | -------------------------------- | ----------------------------------------- |
 | `npm test`                       | Run the vitest suite                      |
+| `npm run test:e2e`               | Run desktop and mobile browser journeys   |
 | `npx tsc --noEmit`               | Typecheck                                 |
 | `npm run tauri build`            | Package a desktop installer/bundle        |
 | `cd src-tauri && cargo check`    | Verify the native Rust side compiles      |
@@ -46,7 +49,12 @@ npm run preview
 - Rename or delete a board with its sidebar controls. Deletion requires confirmation and removes the board's contents. Deleting every board leaves an empty workspace with an **Add board** action.
 - Boards and the last selection persist in `boards.json` under the app-data directory (`%APPDATA%\com.franz.kanban` on Windows), or under `kanban.boards.v1` in browser `localStorage`. Existing `board.json` / `kanban.board.v1` data is imported automatically the first time; the legacy source is preserved.
 - Switching boards discards unfinished input. Changes that have been committed save automatically. Local load/save failures show a retry action; no accounts, cloud storage, or sync are involved.
+- Search cards from the sidebar with **Ctrl/Cmd+K** or **/**. Filter by priority, tag, or column, and switch between Board and List views. Clear filters before dragging; adding a card clears filters so it stays visible.
+- Use the card editor to change title, description, deadline, priority, tags, or column. On the board, drag cards or use **Space**, arrow keys, and **Space** to move them with the keyboard; **Escape** cancels. Press **Enter** to edit. Column grip buttons support the same keyboard dragging.
+- Narrow screens have a board drawer and previous/next column controls. Animations respect the system's reduced-motion setting.
 - `src-tauri/target/` (multi-GB Rust build artifacts) can be reclaimed anytime with `cargo clean` — it rebuilds on the next check/dev/build.
+
+Install the E2E browser once with `npx playwright install chromium`, then run `npm run test:e2e` with port 1420 free. The suite starts its own local server and uses isolated synthetic boards. Screenshots, failure traces, and the HTML report are generated in ignored `test-results/` and `playwright-report/` folders.
 
 ## Desktop updates
 

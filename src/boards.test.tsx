@@ -139,9 +139,9 @@ describe("local boards", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     await user.click(toggle);
     const drawer = screen.getByRole("dialog", { name: "Boards" });
-    expect(within(drawer).getByRole("button", { name: "Close boards sidebar" })).toHaveFocus();
+    expect(within(drawer).getByRole("textbox", { name: "Search cards" })).toHaveFocus();
     await user.tab({ shift: true });
-    expect(within(drawer).getByRole("button", { name: "+ Add board" })).toHaveFocus();
+    expect(within(drawer).getByRole("button", { name: "Switch to light mode" })).toHaveFocus();
     await user.keyboard("{Escape}");
     expect(toggle).toHaveFocus();
     await user.click(toggle);

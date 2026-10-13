@@ -13,6 +13,8 @@ dist-ssr
 *.local
 
 # Editor directories and files
+/.agents/
+/.claude/
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -29,3 +31,8 @@ SPEC.md
 
 # Local updater signing key (never commit)
 /.updater-keys/
+
+# Local design studies and test output
+/prototypes/
+/test-results/
+/playwright-report/

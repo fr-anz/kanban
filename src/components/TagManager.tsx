@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { TAG_SWATCHES } from "../domain/types";
 import type { BoardApi } from "../hooks/useBoard";
+import Modal from "./Modal";
+import Icon from "./Icon";
 
 export default function TagManager({
   board,
@@ -19,17 +21,14 @@ export default function TagManager({
   };
 
   return (
-    <div className="kb-overlay" onClick={onClose}>
-      <div className="kb-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Tags</h2>
+    <Modal title="Tags" onClose={onClose}>
+        <p className="kb-muted">Useful labels for {board.title}.</p>
         <div className="kb-taglist">
           {board.tags.map((t) => {
-            const sw = TAG_SWATCHES[t.colorIndex % TAG_SWATCHES.length];
             return (
               <div key={t.id} className="kb-tagitem">
                 <span
-                  className="kb-tag"
-                  style={{ background: sw.bg, color: sw.text }}
+                  className={`kb-tag tone-${t.colorIndex % TAG_SWATCHES.length}`}
                 >
                   {t.name}
                 </span>
@@ -38,7 +37,7 @@ export default function TagManager({
                   aria-label={`Delete tag ${t.name}`}
                   onClick={() => board.deleteTag(t.id)}
                 >
-                  ×
+                  <Icon name="close" size={14} />
                 </button>
               </div>
             );
@@ -50,6 +49,7 @@ export default function TagManager({
         <div className="kb-newtag">
           <input
             placeholder="Tag name"
+            aria-label="Tag name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
@@ -57,13 +57,13 @@ export default function TagManager({
             }}
           />
           <div className="kb-swatches">
-            {TAG_SWATCHES.map((s, i) => (
+            {TAG_SWATCHES.map((_, i) => (
               <button
                 key={i}
                 type="button"
                 aria-label={`Swatch ${i + 1}`}
-                className={`kb-sw${color === i ? " active" : ""}`}
-                style={{ background: s.bg }}
+                className={`kb-sw tone-${i}${color === i ? " active" : ""}`}
+                aria-pressed={color === i}
                 onClick={() => setColor(i)}
               />
             ))}
@@ -77,7 +77,6 @@ export default function TagManager({
             Close
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

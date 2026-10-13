@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePersistentBoards } from "./hooks/usePersistentBoards";
 import { resolveBoardCollectionStorage } from "./storage/tauriFileStorage";
 import BoardWorkspace from "./components/BoardWorkspace";
 import BoardSidebar from "./components/BoardSidebar";
 import BoardDialog, { type BoardDialogAction } from "./components/BoardDialog";
+import Icon from "./components/Icon";
+import { useAppearance } from "./hooks/useAppearance";
 import "./App.css";
 
 const MOBILE_QUERY = "(max-width: 700px)";
@@ -15,6 +17,10 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(!mobile);
   const [dragging, setDragging] = useState(false);
   const [dialog, setDialog] = useState<BoardDialogAction | null>(null);
+  const [query, setQuery] = useState("");
+  const [focusSearch, setFocusSearch] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const { appearance, toggleAppearance } = useAppearance();
   const active = workspace.activeBoard;
 
   useEffect(() => {
@@ -25,6 +31,27 @@ export default function App() {
     return () => media.removeEventListener("change", change);
   }, []);
 
+  useEffect(() => {
+    if (sidebarOpen && focusSearch) {
+      searchRef.current?.focus();
+      setFocusSearch(false);
+    }
+  }, [sidebarOpen, focusSearch]);
+
+  useEffect(() => {
+    const search = (event: KeyboardEvent) => {
+      const typing = (event.target as HTMLElement).closest?.("input, textarea, select, [contenteditable]");
+      if (document.querySelector('[aria-modal="true"]') || dragging) return;
+      if (((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") || (event.key === "/" && !typing)) {
+        event.preventDefault();
+        setSidebarOpen(true);
+        setFocusSearch(true);
+      }
+    };
+    document.addEventListener("keydown", search);
+    return () => document.removeEventListener("keydown", search);
+  }, [dragging]);
+
   const closeSidebar = () => setSidebarOpen(false);
   const openDialog = (action: BoardDialogAction) => {
     if (dragging || !workspace.loaded) return;
@@ -32,16 +59,18 @@ export default function App() {
     setDialog(action);
   };
   const toggleSidebar = () => setSidebarOpen((open) => !open);
-  const navigation = <button className="kb-btn kb-sidebar-toggle" onClick={toggleSidebar}
-    aria-expanded={sidebarOpen} aria-controls="board-sidebar">Boards</button>;
+  const navigation = <button className="kb-icon-btn kb-sidebar-toggle" onClick={toggleSidebar} aria-label="Boards"
+    aria-expanded={sidebarOpen} aria-controls="board-sidebar"><Icon name="panel" /></button>;
 
   return (
     <div className="kb-root">
       <BoardSidebar boards={workspace.boards} activeBoardId={active?.id ?? null} open={sidebarOpen}
         mobile={mobile} disabled={dragging || !workspace.loaded} dialogOpen={dialog !== null} onClose={closeSidebar}
+        query={query} onQueryChange={setQuery} searchRef={searchRef} appearance={appearance} onToggleAppearance={toggleAppearance}
         onSelect={(id) => {
           if (dragging) return;
           workspace.selectBoard(id);
+          setQuery("");
           if (mobile) closeSidebar();
         }} onAction={openDialog} />
       <div className="kb-content" inert={dialog !== null || (mobile && sidebarOpen)}>
@@ -59,6 +88,7 @@ export default function App() {
           </main>
         </> : active ? <BoardWorkspace key={active.id} snapshot={active}
           setBoard={(update) => workspace.updateBoard(active.id, update)}
+          query={query} onClearQuery={() => setQuery("")}
           onToggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} onDragChange={setDragging} /> : <>
           <header className="kb-header">{navigation}</header>
           <main className="kb-empty">

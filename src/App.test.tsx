@@ -39,7 +39,7 @@ describe("Board UI", () => {
     await user.type(input, "  Hello  {enter}");
     expect(within(column).getByText("Hello")).toBeInTheDocument();
     expect(input).not.toBeInTheDocument();
-    expect(screen.queryByText("New card")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "New card" })).not.toBeInTheDocument();
   });
 
   it("does not add an empty card and lets the inline editor cancel", async () => {

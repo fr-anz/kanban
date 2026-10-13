@@ -4,22 +4,28 @@ import Header from "./Header";
 import ColumnView from "./ColumnView";
 import CardModal from "./CardModal";
 import TagManager from "./TagManager";
+import CardList from "./CardList";
+import FilterDialog from "./FilterDialog";
+import Icon from "./Icon";
+import { EMPTY_FILTERS, visibleCards, type BoardFilters } from "../domain/boardFilters";
 import {
   DndContext,
   DragOverlay,
   MouseSensor,
+  KeyboardSensor,
   TouchSensor,
   closestCenter,
   pointerWithin,
   useSensor,
   useSensors,
   type CollisionDetection,
+  type KeyboardCoordinateGetter,
   type DragCancelEvent,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { arrayMove, SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
+import { arrayMove, SortableContext, horizontalListSortingStrategy, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { markDragEnd } from "./dragGuard";
 import { COLUMN_EASING, COLUMN_SETTLE_MS } from "./columnMotion";
 import type { Board, Card } from "../domain/types";
@@ -48,12 +54,24 @@ const collisionDetection: CollisionDetection = (args) => {
     : closestCenter({ ...args, droppableContainers: targets });
 };
 
-export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, sidebarOpen, onDragChange }: {
+const keyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
+  if (args.context.active?.data.current?.type !== "column") return sortableKeyboardCoordinates(event, args);
+  // Cards are nested droppables. A column grip must target another column,
+  // otherwise the nearest card can move the grip just a few pixels.
+  const droppableRects = new Map([...args.context.droppableRects].filter(([id]) =>
+    args.context.droppableContainers.get(id)?.data.current?.type === "column",
+  ));
+  return sortableKeyboardCoordinates(event, { ...args, context: { ...args.context, droppableRects } });
+};
+
+export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, sidebarOpen, onDragChange, query, onClearQuery }: {
   snapshot: Board;
   setBoard: Dispatch<SetStateAction<Board>>;
   onToggleSidebar: () => void;
   sidebarOpen: boolean;
   onDragChange: (dragging: boolean) => void;
+  query: string;
+  onClearQuery: () => void;
 }) {
   const board = useBoard(snapshot, { board: snapshot, setBoard });
   const [freshColId, setFreshColId] = useState<string | null>(null);
@@ -61,6 +79,14 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
     { columnId: string; cardId?: string } | null
   >(null);
   const [tagsOpen, setTagsOpen] = useState(false);
+  const [view, setView] = useState<"board" | "list">("board");
+  const [filters, setFilters] = useState<BoardFilters>(EMPTY_FILTERS);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const filterCount = Object.values(filters).filter((value) => value !== "all").length;
+  const filtered = Boolean(query.trim() || filterCount);
+  const visible = visibleCards(snapshot, query, filters);
+  const clearFilters = () => { setFilters(EMPTY_FILTERS); onClearQuery(); };
 
   const sorted = [...board.columns].sort((a, b) => a.order - b.order);
   const boardRef = useRef<HTMLElement>(null);
@@ -82,6 +108,7 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
     const before = columnDropRects.current;
     if (!before) return;
     columnDropRects.current = null;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
     const columns = boardRef.current?.querySelectorAll<HTMLElement>(".kb-col[data-column-id]");
     columns?.forEach((element) => {
       const id = element.dataset.columnId;
@@ -110,6 +137,7 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
     useSensor(TouchSensor, {
       activationConstraint: { delay: 250, tolerance: 8 },
     }),
+    useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinates }),
   );
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [showCardOverlay, setShowCardOverlay] = useState(false);
@@ -131,6 +159,10 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
 
   const finishCardOverlay = () => {
     clearCardOverlayTimer();
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setShowCardOverlay(false);
+      return;
+    }
     // Keep the overlay mounted through dnd-kit's 250 ms card drop animation.
     cardOverlayTimer.current = window.setTimeout(() => {
       setShowCardOverlay(false);
@@ -178,6 +210,7 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
     });
 
   const onDragStart = (e: DragStartEvent) => {
+    setDragging(true);
     onDragChange(true);
     clearCardOverlayTimer();
     if (e.active.data.current?.type === "column") {
@@ -202,6 +235,7 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
     placeForOver(activeId, overId, belowOverItem(e));
   };
   const onDragEnd = (e: DragEndEvent) => {
+    setDragging(false);
     onDragChange(false);
     const activeId = String(e.active.id);
     const overId = e.over ? String(e.over.id) : null;
@@ -228,6 +262,7 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
     if (overId !== activeId) placeForOver(activeId, overId, belowOverItem(e));
   };
   const onDragCancel = (e: DragCancelEvent) => {
+    setDragging(false);
     onDragChange(false);
     if (e.active.data.current?.type !== "column") {
       restoreSnapshot();
@@ -247,7 +282,7 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
   // stay with native column scrolling.
   useEffect(() => {
     const el = boardRef.current;
-    if (!el) return;
+    if (!el || view !== "board") return;
     let pid: number | null = null;
     let engaged = false;
     let startX = 0;
@@ -306,7 +341,7 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
       pid = null;
       el.style.touchAction = "";
       el.classList.remove("panning");
-      if (!fling || !engaged) return;
+      if (!fling || !engaged || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
       if (typeof requestAnimationFrame !== "function") return;
       const v = -computeVelocity(samples); // scrollLeft direction, px/ms
       if (Math.abs(v) < 0.15) return;
@@ -332,7 +367,7 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
       el.removeEventListener("pointerup", up);
       el.removeEventListener("pointercancel", cancel);
     };
-  }, []);
+  }, [view]);
 
   // Pager for narrow screens: jump one column at a time.
   const page = (dir: 1 | -1) => {
@@ -340,7 +375,7 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
     if (!el) return;
     const col = el.querySelector(".kb-col") as HTMLElement | null;
     const step = col ? col.getBoundingClientRect().width + 16 : el.clientWidth * 0.85;
-    el.scrollBy({ left: dir * step, behavior: "smooth" });
+    el.scrollBy({ left: dir * step, behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   };
 
   return (
@@ -359,16 +394,25 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
         sidebarOpen={sidebarOpen}
         onAddColumn={() => setFreshColId(board.addColumn("New column"))}
         onOpenTags={() => setTagsOpen(true)}
+        onNewCard={() => { clearFilters(); setCardModal({ columnId: sorted[0].id }); }}
+        view={view} onViewChange={(next) => { setFreshColId(null); setView(next); }}
+        onFilter={() => setFilterOpen(true)} filterCount={filterCount}
+        locked={dragging}
       />
-      <div className="kb-pager" role="group" aria-label="Scroll columns">
+      {filtered && <div className="kb-filter-summary" role="status">
+        <span>{visible.length} of {board.cards.length} cards{query.trim() && <> matching “{query.trim()}”</>}. Clear filters to reorder.</span>
+        <button className="kb-link" onClick={clearFilters}>Clear filters</button>
+      </div>}
+      {view === "board" && <div className="kb-pager" role="group" aria-label="Scroll columns">
         <button aria-label="Previous column" onClick={() => page(-1)}>
-          ‹
+          <Icon name="arrowLeft" />
         </button>
         <button aria-label="Next column" onClick={() => page(1)}>
-          ›
+          <Icon name="arrowRight" />
         </button>
-      </div>
-      <main ref={boardRef} className="kb-board">
+      </div>}
+      <main ref={boardRef} className={view === "board" ? "kb-board" : "kb-list-surface"}>
+        {view === "list" ? <CardList board={board} cards={visible} onOpenCard={(columnId, cardId) => { if (!cardId) clearFilters(); setCardModal({ columnId, cardId }); }} /> : <>
         <SortableContext
           items={sorted.map((c) => c.id)}
           strategy={horizontalListSortingStrategy}
@@ -383,6 +427,9 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
                 setCardModal({ columnId: c.id, cardId })
               }
               dropHighlight={overColumnId === c.id}
+              visible={visible}
+              draggable={!filtered}
+              onStartAdd={clearFilters}
             />
           ))}
         </SortableContext>
@@ -391,8 +438,9 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
           onClick={() => setFreshColId(board.addColumn("New column"))}
           aria-label="Add column"
         >
-          +
+          <Icon name="plus" size={20} /><span>Add column</span>
         </button>
+        </>}
       </main>
       {cardModal && (
         <CardModal
@@ -401,9 +449,11 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
           cardId={cardModal.cardId}
           onClose={() => setCardModal(null)}
           onOpenTags={() => setTagsOpen(true)}
+          hidden={tagsOpen}
         />
       )}
       {tagsOpen && <TagManager board={board} onClose={() => setTagsOpen(false)} />}
+      {filterOpen && <FilterDialog board={snapshot} filters={filters} onChange={setFilters} onClose={() => setFilterOpen(false)} />}
     </div>
     {showCardOverlay && (
       <DragOverlay>

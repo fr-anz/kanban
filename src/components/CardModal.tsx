@@ -1,13 +1,9 @@
 import { useState } from "react";
 import { TAG_SWATCHES, type Priority } from "../domain/types";
 import type { BoardApi } from "../hooks/useBoard";
+import Modal from "./Modal";
 
 const PRIORITIES: Priority[] = ["low", "medium", "high"];
-const DOT: Record<Priority, string> = {
-  high: "#f87171",
-  medium: "#f5c897",
-  low: "#a8cff5",
-};
 
 export default function CardModal({
   board,
@@ -15,12 +11,14 @@ export default function CardModal({
   cardId,
   onClose,
   onOpenTags,
+  hidden = false,
 }: {
   board: BoardApi;
   columnId: string;
   cardId?: string;
   onClose: () => void;
   onOpenTags: () => void;
+  hidden?: boolean;
 }) {
   const existing = cardId ? board.cards.find((c) => c.id === cardId) : undefined;
   const [title, setTitle] = useState(existing?.title ?? "");
@@ -57,13 +55,8 @@ export default function CardModal({
     setTagIds((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
 
   return (
-    <div
-      className="kb-overlay"
-      onClick={onClose}
-      data-testid="card-modal-overlay"
-    >
-      <div className="kb-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{existing ? "Edit card" : "New card"}</h2>
+    <Modal title={existing ? "Edit card" : "New card"} onClose={onClose} sheet open={!hidden} testId="card-modal-overlay">
+        <p className="kb-editor-context">{board.title}</p>
         <label className="kb-field">
           <span>Title</span>
           <input
@@ -115,8 +108,9 @@ export default function CardModal({
                 className={`kb-prio${priority === p ? " active" : ""}`}
                 onClick={() => setPriority(p)}
                 title={p}
+                aria-pressed={priority === p}
               >
-                <span className="kb-dot" style={{ background: DOT[p] }} /> {p}
+                <span className={`kb-dot priority-${p}`} /> {p}
               </button>
             ))}
           </div>
@@ -125,14 +119,13 @@ export default function CardModal({
           <span>Tags</span>
           <div className="kb-tagpick">
             {board.tags.map((t) => {
-              const sw = TAG_SWATCHES[t.colorIndex % TAG_SWATCHES.length];
               const on = tagIds.includes(t.id);
               return (
                 <button
                   key={t.id}
                   type="button"
-                  className={`kb-tag toggle${on ? " on" : ""}`}
-                  style={{ background: sw.bg, color: sw.text }}
+                  className={`kb-tag toggle tone-${t.colorIndex % TAG_SWATCHES.length}${on ? " on" : ""}`}
+                  aria-pressed={on}
                   onClick={() => toggleTag(t.id)}
                 >
                   {t.name}
@@ -148,11 +141,10 @@ export default function CardModal({
           <button className="kb-btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="kb-btn primary" onClick={submit}>
+          <button className="kb-btn primary" onClick={submit} disabled={!title.trim()}>
             {existing ? "Save" : "Add"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
