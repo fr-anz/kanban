@@ -54,16 +54,6 @@ const collisionDetection: CollisionDetection = (args) => {
     : closestCenter({ ...args, droppableContainers: targets });
 };
 
-const keyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
-  if (args.context.active?.data.current?.type !== "column") return sortableKeyboardCoordinates(event, args);
-  // Cards are nested droppables. A column grip must target another column,
-  // otherwise the nearest card can move the grip just a few pixels.
-  const droppableRects = new Map([...args.context.droppableRects].filter(([id]) =>
-    args.context.droppableContainers.get(id)?.data.current?.type === "column",
-  ));
-  return sortableKeyboardCoordinates(event, { ...args, context: { ...args.context, droppableRects } });
-};
-
 export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, sidebarOpen, onDragChange, onEditChange, query, onClearQuery }: {
   snapshot: Board;
   setBoard: Dispatch<SetStateAction<Board>>;
@@ -95,6 +85,20 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
   const clearFilters = () => { setFilters(EMPTY_FILTERS); onClearQuery(); };
 
   const sorted = [...board.columns].sort((a, b) => a.order - b.order);
+  const keyboardColumnTarget = useRef<string | null>(null);
+  const keyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
+    const active = args.context.active;
+    if (active?.data.current?.type !== "column") return sortableKeyboardCoordinates(event, args);
+    if (event.code !== "ArrowLeft" && event.code !== "ArrowRight") return;
+    event.preventDefault();
+    const current = keyboardColumnTarget.current ?? String(active.id);
+    const index = sorted.findIndex((column) => column.id === current);
+    const next = sorted[index + (event.code === "ArrowRight" ? 1 : -1)];
+    const rect = next && args.context.droppableRects.get(next.id);
+    if (!next || !rect) return;
+    keyboardColumnTarget.current = next.id;
+    return { x: rect.left, y: rect.top };
+  };
   const boardRef = useRef<HTMLElement>(null);
   const columnDropRects = useRef<Map<string, DOMRect> | null>(null);
   const [columnDropRevision, setColumnDropRevision] = useState(0);
@@ -216,6 +220,7 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
     });
 
   const onDragStart = (e: DragStartEvent) => {
+    keyboardColumnTarget.current = e.active.data.current?.type === "column" ? String(e.active.id) : null;
     setDragging(true);
     onDragChange(true);
     clearCardOverlayTimer();
@@ -244,7 +249,11 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
     setDragging(false);
     onDragChange(false);
     const activeId = String(e.active.id);
-    const overId = e.over ? String(e.over.id) : null;
+    // Scroll/collision updates can change `over` after a keyboard move. Keep
+    // the destination selected by arrow keys when ending a column gesture.
+    const overId = e.active.data.current?.type === "column" && e.activatorEvent instanceof KeyboardEvent
+      ? keyboardColumnTarget.current : e.over ? String(e.over.id) : null;
+    keyboardColumnTarget.current = null;
     setActiveCardId(null);
     setOverColumnId(null);
     if (e.active.data.current?.type === "column") {
@@ -268,6 +277,7 @@ export default function BoardWorkspace({ snapshot, setBoard, onToggleSidebar, si
     if (overId !== activeId) placeForOver(activeId, overId, belowOverItem(e));
   };
   const onDragCancel = (e: DragCancelEvent) => {
+    keyboardColumnTarget.current = null;
     setDragging(false);
     onDragChange(false);
     if (e.active.data.current?.type !== "column") {

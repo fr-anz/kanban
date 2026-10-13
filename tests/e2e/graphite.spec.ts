@@ -49,6 +49,10 @@ async function drag(page: Page, source: Locator, destination: Locator, verticalO
 }
 
 test.beforeEach(async ({ page }) => {
+  if (process.env.KANBAN_E2E_CPU_THROTTLE) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.KANBAN_E2E_CPU_THROTTLE) });
+  }
   const errors: string[] = [];
   pageErrors.set(page, errors);
   page.on("pageerror", (error) => errors.push(error.message));
@@ -241,6 +245,31 @@ test("keyboard drag cancellation and column ordering work without opening the ed
   await page.keyboard.press("Space");
   await expect(page.locator(".kb-col-label")).toHaveText(["In Progress", "To Do", "Done"]);
   await expect(page.getByRole("dialog", { name: "Edit card" })).toHaveCount(0);
+});
+
+test("keyboard column destinations survive reversals, boundaries, and cancellation", async ({ page }) => {
+  const grip = page.getByRole("button", { name: "Move To Do", exact: true });
+  await grip.focus();
+  await page.keyboard.press("Space");
+  await expect(column(page, "To Do")).toHaveClass(/is-dragging/);
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Escape");
+  await expect(column(page, "To Do")).not.toHaveClass(/is-dragging/);
+  await expect(page.locator(".kb-col-label")).toHaveText(["To Do", "In Progress", "Done"]);
+
+  await grip.focus();
+  await page.keyboard.press("Space");
+  await expect(column(page, "To Do")).toHaveClass(/is-dragging/);
+  await page.keyboard.press("ArrowLeft"); // First column has no destination to its left.
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight"); // Last column has no destination to its right.
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("Space");
+  await expect(page.locator(".kb-col-label")).toHaveText(["In Progress", "To Do", "Done"]);
+  await expect.poll(async () => (await stored(page)).boards[0].columns
+    .sort((a: { order: number }, b: { order: number }) => a.order - b.order)
+    .map((item: { title: string }) => item.title)).toEqual(["In Progress", "To Do", "Done"]);
 });
 
 test("columns, very long content, many cards, and reduced motion keep the layout usable", async ({ page }) => {

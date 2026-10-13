@@ -38,6 +38,13 @@ jobs:
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
       - run: npx playwright install chromium
       - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure-evidence
+          path: |
+            test-results/
+            playwright-report/
 
   release:
     needs: verify
