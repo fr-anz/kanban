@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import App from "../App";
 import {
@@ -101,8 +101,9 @@ describe("board pan gesture (App)", () => {
     return e;
   }
 
-  it("touch swipe on empty space pans the board 1:1", () => {
-    render(<App />);
+  it("touch swipe on empty space pans the board 1:1", async () => {
+    await act(async () => { render(<App />); });
+    await screen.findByRole("heading", { name: "My Board" });
     const boardEl = document.querySelector(".kb-board") as HTMLElement;
     boardEl.scrollLeft = 0;
     fireEvent(
@@ -134,8 +135,9 @@ describe("board pan gesture (App)", () => {
     expect(boardEl.classList.contains("panning")).toBe(false);
   });
 
-  it("vertical swipe on empty space does not pan (native column scroll owns it)", () => {
-    render(<App />);
+  it("vertical swipe on empty space does not pan (native column scroll owns it)", async () => {
+    await act(async () => { render(<App />); });
+    await screen.findByRole("heading", { name: "My Board" });
     const boardEl = document.querySelector(".kb-board") as HTMLElement;
     boardEl.scrollLeft = 0;
     fireEvent(
@@ -158,8 +160,9 @@ describe("board pan gesture (App)", () => {
     expect(boardEl.classList.contains("panning")).toBe(false);
   });
 
-  it("pressing a card never starts a board pan", () => {
-    render(<App />);
+  it("pressing a card never starts a board pan", async () => {
+    await act(async () => { render(<App />); });
+    await screen.findByRole("heading", { name: "My Board" });
     fireEvent.click(screen.getAllByRole("button", { name: /add card/i })[0]);
     fireEvent.change(screen.getByPlaceholderText(/card title/i), {
       target: { value: "Card" },
@@ -187,8 +190,9 @@ describe("board pan gesture (App)", () => {
     expect(boardEl.classList.contains("panning")).toBe(false);
   });
 
-  it("mouse drag on empty board pans (grab empty space)", () => {
-    render(<App />);
+  it("mouse drag on empty board pans (grab empty space)", async () => {
+    await act(async () => { render(<App />); });
+    await screen.findByRole("heading", { name: "My Board" });
     const boardEl = document.querySelector(".kb-board") as HTMLElement;
     boardEl.scrollLeft = 0;
     fireEvent(
@@ -223,8 +227,9 @@ describe("board pan gesture (App)", () => {
     expect(boardEl.classList.contains("panning")).toBe(false);
   });
 
-  it("mouse click without movement scrolls nothing", () => {
-    render(<App />);
+  it("mouse click without movement scrolls nothing", async () => {
+    await act(async () => { render(<App />); });
+    await screen.findByRole("heading", { name: "My Board" });
     const boardEl = document.querySelector(".kb-board") as HTMLElement;
     boardEl.scrollLeft = 0;
     fireEvent(
@@ -249,8 +254,9 @@ describe("board pan gesture (App)", () => {
     expect(boardEl.classList.contains("panning")).toBe(false);
   });
 
-  it("mouse press inside a column never starts a board pan", () => {
-    render(<App />);
+  it("mouse press inside a column never starts a board pan", async () => {
+    await act(async () => { render(<App />); });
+    await screen.findByRole("heading", { name: "My Board" });
     const boardEl = document.querySelector(".kb-board") as HTMLElement;
     const colBody = document.querySelector(".kb-col-body") as HTMLElement;
     boardEl.scrollLeft = 0;

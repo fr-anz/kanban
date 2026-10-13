@@ -46,6 +46,12 @@ export interface Board {
   tags: Tag[];
 }
 
+export interface BoardCollection {
+  version: 1;
+  boards: Board[];
+  activeBoardId: string | null;
+}
+
 export const COLUMN_PRESETS = [
   { name: "lavender", field: "#e8e0f8", header: "#c9b8f0", accent: "#6d4fc2" },
   { name: "blue", field: "#d6eaff", header: "#a8cff5", accent: "#2563a8" },

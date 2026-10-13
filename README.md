@@ -1,6 +1,6 @@
 # Kanban Board
 
-A personal, single-user kanban board — React + TypeScript + Vite, wrapped in a Tauri desktop shell. Custom columns, cards with deadlines/priorities/tags, drag-and-drop, and local persistence (file-backed in the desktop app, `localStorage` in the browser).
+A personal, single-user kanban app — React + TypeScript + Vite, wrapped in a Tauri desktop shell. Multiple local boards, custom columns, cards with deadlines/priorities/tags, drag-and-drop, and local persistence (file-backed in the desktop app, `localStorage` in the browser).
 
 ## Run it locally
 
@@ -42,12 +42,15 @@ npm run preview
 
 ## Notes
 
-- Board data persists in `board.json` under the app-data directory (`%APPDATA%\com.franz.kanban` on Windows) when running as a desktop app, and in `localStorage` when running in a browser.
+- Create and select boards from the left sidebar. Use the **Boards** button to collapse or reopen it; narrow screens use a drawer. New boards start with To Do, In Progress, and Done and have their own cards and tags.
+- Rename or delete a board with its sidebar controls. Deletion requires confirmation and removes the board's contents. Deleting every board leaves an empty workspace with an **Add board** action.
+- Boards and the last selection persist in `boards.json` under the app-data directory (`%APPDATA%\com.franz.kanban` on Windows), or under `kanban.boards.v1` in browser `localStorage`. Existing `board.json` / `kanban.board.v1` data is imported automatically the first time; the legacy source is preserved.
+- Switching boards discards unfinished input. Changes that have been committed save automatically. Local load/save failures show a retry action; no accounts, cloud storage, or sync are involved.
 - `src-tauri/target/` (multi-GB Rust build artifacts) can be reclaimed anytime with `cargo clean` — it rebuilds on the next check/dev/build.
 
 ## Desktop updates
 
-The desktop app checks for updates when it opens and asks before installing one. You can also use **Check for updates** in the header. Browser builds do not check for desktop updates.
+The desktop app checks for updates when it opens and asks before installing one. You can also use **Check for updates** at the bottom of the sidebar. Browser builds do not check for desktop updates.
 
 Updates are served from the public GitHub Releases of `fr-anz/kanban`. The release workflow in `.github/workflows/release.yml` builds signed updater artifacts and `latest.json` when a `v*` tag is pushed. The repository and its releases must be public so installed apps can download them without a GitHub login.
 

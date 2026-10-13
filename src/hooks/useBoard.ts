@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import {
   newId,
   nextPresetIndex,
@@ -19,7 +19,7 @@ export interface NewCard {
 
 const nowIso = () => new Date().toISOString();
 
-function defaults(): Board {
+export function createBoard(title = "My Board"): Board {
   const mk = (title: string, i: number): Column => ({
     id: newId(),
     title,
@@ -27,11 +27,16 @@ function defaults(): Board {
     order: i,
   });
   const columns = [mk("To Do", 0), mk("In Progress", 1), mk("Done", 2)];
-  return { id: newId(), title: "My Board", columns, cards: [], tags: [] };
+  return { id: newId(), title, columns, cards: [], tags: [] };
 }
 
-export function useBoard(initial?: Board) {
-  const [board, setBoard] = useState<Board>(initial ?? defaults);
+export function useBoard(initial?: Board, binding?: {
+  board: Board;
+  setBoard: Dispatch<SetStateAction<Board>>;
+}) {
+  const [localBoard, setLocalBoard] = useState<Board>(initial ?? createBoard);
+  const board = binding?.board ?? localBoard;
+  const setBoard = binding?.setBoard ?? setLocalBoard;
 
   const addColumn = (title: string): string => {
     const col: Column = {

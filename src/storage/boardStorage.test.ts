@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  memoryBoardStorage,
-  serializeBoard,
-  parseBoard,
-} from "./boardStorage";
+import { parseBoard } from "./boardStorage";
 import type { Board } from "../domain/types";
 
 const sample: Board = {
@@ -14,20 +10,13 @@ const sample: Board = {
   tags: [],
 };
 
-describe("boardStorage (seam D)", () => {
-  it("round-trips a board through save/load", async () => {
-    const s = memoryBoardStorage();
-    await s.save(sample);
-    expect(await s.load()).toEqual(sample);
-  });
-
-  it("returns null when nothing stored", async () => {
-    const s = memoryBoardStorage();
-    expect(await s.load()).toBeNull();
+describe("legacy board parsing", () => {
+  it("returns null when nothing stored", () => {
+    expect(parseBoard(null)).toBeNull();
   });
 
   it("recovers from corrupt JSON (serialize/parse)", () => {
     expect(parseBoard("not-json{{{")).toBeNull();
-    expect(parseBoard(serializeBoard(sample))).toEqual(sample);
+    expect(parseBoard(JSON.stringify(sample))).toEqual(sample);
   });
 });

@@ -12,6 +12,7 @@ describe("SPEC §2 Card management", () => {
   it("edits by clicking: card modal pre-filled", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("heading", { name: "My Board" });
     await user.click(screen.getAllByRole("button", { name: /add card/i })[0]);
     await user.type(screen.getByPlaceholderText(/card title/i), "Original");
     await user.click(screen.getByRole("button", { name: /^add$/i }));
@@ -30,6 +31,7 @@ describe("SPEC §2 Card management", () => {
   it("deletes via card ×", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("heading", { name: "My Board" });
     await user.click(screen.getAllByRole("button", { name: /add card/i })[0]);
     await user.type(screen.getByPlaceholderText(/card title/i), "Gone");
     await user.click(screen.getByRole("button", { name: /^add$/i }));
@@ -42,6 +44,7 @@ describe("SPEC §2 Card management", () => {
   it("Done column renders strikethrough + reduced opacity", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("heading", { name: "My Board" });
     const doneCol = screen.getByText("Done").closest("section")!;
     await user.click(
       within(doneCol as HTMLElement).getByRole("button", { name: /add card/i }),

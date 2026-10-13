@@ -4,9 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import App from "./App";
 
 describe("Board UI", () => {
-  it("renders header, 3 default columns, ghost add, and tags button", () => {
+  it("renders header, 3 default columns, ghost add, and tags button", async () => {
     render(<App />);
-    expect(screen.getByText("My Board")).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "My Board" });
+    expect(screen.getByRole("heading", { name: "My Board" })).toBeInTheDocument();
     expect(screen.getByText("To Do")).toBeInTheDocument();
     expect(screen.getByText("In Progress")).toBeInTheDocument();
     expect(screen.getByText("Done")).toBeInTheDocument();
@@ -21,6 +22,7 @@ describe("Board UI", () => {
   it("adds a column via header button", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("heading", { name: "My Board" });
     await user.click(screen.getByRole("button", { name: "+ Add column" }));
     expect(screen.getByDisplayValue("New column")).toBeInTheDocument();
   });
@@ -28,6 +30,7 @@ describe("Board UI", () => {
   it("adds a card inline in the selected column on Enter", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("heading", { name: "My Board" });
     const column = screen.getByText("In Progress").closest("section")!;
     await user.click(within(column).getByRole("button", { name: /add card/i }));
     const input = within(column).getByRole("textbox", {
@@ -42,6 +45,7 @@ describe("Board UI", () => {
   it("does not add an empty card and lets the inline editor cancel", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("heading", { name: "My Board" });
     const column = screen.getByText("To Do").closest("section")!;
     await user.click(within(column).getByRole("button", { name: /add card/i }));
     const input = within(column).getByRole("textbox", {
@@ -54,8 +58,9 @@ describe("Board UI", () => {
     expect(within(column).queryByText("Draft")).not.toBeInTheDocument();
   });
 
-  it("shows a drag handle on every column", () => {
+  it("shows a drag handle on every column", async () => {
     render(<App />);
+    await screen.findByRole("heading", { name: "My Board" });
     expect(screen.getByRole("button", { name: "Move To Do" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Move In Progress" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Move Done" })).toBeInTheDocument();
@@ -64,6 +69,7 @@ describe("Board UI", () => {
   it("reorders columns when a header handle is dragged", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("heading", { name: "My Board" });
     await user.click(screen.getAllByRole("button", { name: /add card/i })[0]);
     await user.type(screen.getByPlaceholderText(/card title/i), "Keep me{enter}");
     const columns = Array.from(document.querySelectorAll<HTMLElement>(".kb-col"));
@@ -92,6 +98,7 @@ describe("Board UI", () => {
   it("still moves cards between columns by dragging", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("heading", { name: "My Board" });
     await user.click(screen.getAllByRole("button", { name: /add card/i })[0]);
     await user.type(screen.getByPlaceholderText(/card title/i), "Move me{enter}");
     const columns = Array.from(document.querySelectorAll<HTMLElement>(".kb-col"));
